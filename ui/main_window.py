@@ -10,20 +10,28 @@ from PySide6.QtWidgets import (
     QStatusBar,
 )
 
+from ui.menu_bar import MenuBarManager
+
 
 class MainWindow(QMainWindow):
+
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("GEETA AI v1.0.0")
+        self.setWindowTitle("GEETA AI v1.1.0")
         self.resize(1300, 750)
+
+        # Create Menu Bar
+        self.menu_manager = MenuBarManager(self)
+        self.menu_manager.create()
 
         central = QWidget()
         self.setCentralWidget(central)
 
-        layout = QHBoxLayout(central)
+        layout = QHBoxLayout()
+        central.setLayout(layout)
 
-        # Left Panel
+        # Project Explorer
         self.project_tree = QTreeWidget()
         self.project_tree.setHeaderLabel("Project Explorer")
         self.project_tree.setMinimumWidth(280)
@@ -33,6 +41,7 @@ class MainWindow(QMainWindow):
 
         folders = [
             "agents",
+            "config",
             "core",
             "database",
             "logs",
@@ -45,12 +54,12 @@ class MainWindow(QMainWindow):
         for folder in folders:
             root.addChild(QTreeWidgetItem([folder]))
 
-        # Right Panel
-        right = QVBoxLayout()
+        # Right Side
+        right_layout = QVBoxLayout()
 
         self.editor = QTextEdit()
         self.editor.setPlaceholderText(
-            "Welcome to GEETA AI\n\nFuture AI coding will appear here..."
+            "Welcome to GEETA AI\n\nStart building your software..."
         )
 
         self.console = QTextEdit()
@@ -58,15 +67,15 @@ class MainWindow(QMainWindow):
         self.console.setMaximumHeight(180)
         self.console.setPlainText("Console Ready...")
 
-        right.addWidget(QLabel("AI Workspace"))
-        right.addWidget(self.editor)
+        right_layout.addWidget(QLabel("Editor"))
+        right_layout.addWidget(self.editor)
 
-        right.addWidget(QLabel("Console"))
-        right.addWidget(self.console)
+        right_layout.addWidget(QLabel("Console"))
+        right_layout.addWidget(self.console)
 
         layout.addWidget(self.project_tree)
-        layout.addLayout(right)
+        layout.addLayout(right_layout)
 
         status = QStatusBar()
-        status.showMessage("GEETA AI Loaded Successfully")
+        status.showMessage("GEETA AI v1.1.0 Ready")
         self.setStatusBar(status)
