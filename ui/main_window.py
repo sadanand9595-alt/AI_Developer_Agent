@@ -1,16 +1,17 @@
+import os
+
 from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
     QHBoxLayout,
     QVBoxLayout,
-    QTreeWidget,
-    QTreeWidgetItem,
     QTextEdit,
     QLabel,
     QStatusBar,
 )
 
 from ui.menu_bar import MenuBarManager
+from ui.file_explorer import FileExplorer
 
 
 class MainWindow(QMainWindow):
@@ -18,49 +19,31 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("GEETA AI v1.1.0")
-        self.resize(1300, 750)
+        self.current_file = None
 
-        # Create Menu Bar
+        self.setWindowTitle("GEETA AI IDE v2.4.0")
+        self.resize(1400, 800)
+
+        # Menu
         self.menu_manager = MenuBarManager(self)
         self.menu_manager.create()
 
+        # Central Widget
         central = QWidget()
         self.setCentralWidget(central)
 
         layout = QHBoxLayout()
         central.setLayout(layout)
 
-        # Project Explorer
-        self.project_tree = QTreeWidget()
-        self.project_tree.setHeaderLabel("Project Explorer")
-        self.project_tree.setMinimumWidth(280)
+        # Left Panel
+        self.project_tree = FileExplorer()
+        self.project_tree.fileOpened.connect(self.open_file)
 
-        root = QTreeWidgetItem(["GEETA_AI"])
-        self.project_tree.addTopLevelItem(root)
-
-        folders = [
-            "agents",
-            "config",
-            "core",
-            "database",
-            "logs",
-            "memory",
-            "tools",
-            "ui",
-            "workspace",
-        ]
-
-        for folder in folders:
-            root.addChild(QTreeWidgetItem([folder]))
-
-        # Right Side
+        # Right Panel
         right_layout = QVBoxLayout()
 
         self.editor = QTextEdit()
-        self.editor.setPlaceholderText(
-            "Welcome to GEETA AI\n\nStart building your software..."
-        )
+        self.editor.setPlaceholderText("Welcome to GEETA AI")
 
         self.console = QTextEdit()
         self.console.setReadOnly(True)
@@ -77,5 +60,44 @@ class MainWindow(QMainWindow):
         layout.addLayout(right_layout)
 
         status = QStatusBar()
-        status.showMessage("GEETA AI v1.1.0 Ready")
+        status.showMessage("GEETA AI IDE v2.4.0 Ready")
         self.setStatusBar(status)
+
+    def open_file(self, file_path):
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
+                text = file.read()
+
+            self.current_file = file_path
+
+            self.editor.setPlainText(text)
+
+            self.setWindowTitle(
+                f"GEETA AI - {os.path.basename(file_path)}"
+            )
+
+            self.statusBar().showMessage(file_path)
+
+        except Exception as e:
+            self.console.append(f"ERROR: {e}")
+
+    def save_file(self):
+        if self.current_file is None:
+            self.console.append("No file is open.")
+            return
+
+        try:
+            with open(self.current_file, "w", encoding="utf-8") as file:
+                file.write(self.editor.toPlainText())
+
+            self.statusBar().showMessage(
+                f"Saved: {os.path.basename(self.current_file)}",
+                3000
+            )
+
+            self.setWindowTitle(
+                f"GEETA AI - {os.path.basename(self.current_file)}"
+            )
+
+        except Exception as e:
+            self.console.append(f"ERROR: {e}")
