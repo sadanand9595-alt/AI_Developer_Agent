@@ -1,0 +1,11 @@
+{
+    "theme": "dark",
+    "font_size": 12,
+    "font_family": "Consolas",
+    "auto_save": true,
+    "auto_update": true,
+    "shortcuts": {
+        "open_file": "Ctrl+P",
+        "save_file": "Ctrl+S"
+    }
+}

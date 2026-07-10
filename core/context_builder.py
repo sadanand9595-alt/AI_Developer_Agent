@@ -128,6 +128,35 @@ class ContextBuilder:
 
     # ------------------------------------------------------
 
+    def build_context(self, prompt: str) -> str:
+        """Return a lightweight project-aware summary suitable for chat responses."""
+
+        files = sorted(self.workspace.rglob("*"))
+        text_files = [
+            path for path in files
+            if path.is_file() and path.suffix.lower() in {".py", ".md", ".json", ".txt", ".yml", ".yaml"}
+        ]
+
+        sample_files = text_files[:8]
+        snippets = []
+        for path in sample_files:
+            try:
+                content = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            snippet = " ".join(content.split())
+            if snippet:
+                snippets.append(f"{path.relative_to(self.workspace)}: {snippet[:180]}")
+
+        if not snippets:
+            return f"Workspace context unavailable for: {prompt}"
+
+        return (
+            f"Prompt: {prompt}\n"
+            f"Workspace: {self.workspace.name}\n"
+            f"Relevant files: {' | '.join(snippets)}"
+        )
+
     @staticmethod
     def _language(ext: str):
 

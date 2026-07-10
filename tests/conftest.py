@@ -2,11 +2,31 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 
 import pytest
 
 from database import database
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+LOCAL_TMP_DIR = REPO_ROOT / "workspace" / "tmp"
+LOCAL_TMP_DIR.mkdir(parents=True, exist_ok=True)
+
+os.environ.setdefault("TMPDIR", str(LOCAL_TMP_DIR))
+os.environ.setdefault("TEMP", str(LOCAL_TMP_DIR))
+os.environ.setdefault("TMP", str(LOCAL_TMP_DIR))
+tempfile.tempdir = str(LOCAL_TMP_DIR)
+
+def pytest_ignore_collect(collection_path, config):
+    path = Path(str(collection_path))
+    return str(path).startswith(str(LOCAL_TMP_DIR)) or path.name.startswith("test_workspace_index_rejects")
+
+
+def pytest_configure(config):
+    config.option.pyargs = False
 
 
 @pytest.fixture
