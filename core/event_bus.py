@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -18,6 +19,8 @@ from core.events import Event, EventType
 
 EventHandler = Callable[[Event], Any]
 AsyncEventHandler = Callable[[Event], Awaitable[Any]]
+
+logger = logging.getLogger(__name__)
 
 
 class EventBus:
@@ -82,8 +85,8 @@ class EventBus:
         Publish an event to all registered handlers.
 
         Handlers are executed independently. A handler failure is
-        allowed to propagate so callers can decide how failures
-        should be handled.
+        logged and does not prevent other handlers from receiving
+        the event.
         """
 
         handlers = list(
@@ -94,10 +97,18 @@ class EventBus:
             return
 
         for handler in handlers:
-            result = handler(event)
+            try:
+                result = handler(event)
 
-            if inspect.isawaitable(result):
-                await result
+                if inspect.isawaitable(result):
+                    await result
+            except Exception as exc:
+                logger.error(
+                    "Event handler failed for %s: %s",
+                    event.event_type,
+                    exc,
+                    exc_info=True,
+                )
 
     async def publish_parallel(self, event: Event) -> None:
         """
@@ -117,16 +128,24 @@ class EventBus:
         awaitables: list[Awaitable[Any]] = []
 
         for handler in handlers:
-            result = handler(event)
+            try:
+                result = handler(event)
 
-            if inspect.isawaitable(result):
-                awaitables.append(result)
-            else:
-                # Synchronous handlers are already completed.
-                continue
+                if inspect.isawaitable(result):
+                    awaitables.append(result)
+                else:
+                    # Synchronous handlers are already completed.
+                    continue
+            except Exception as exc:
+                logger.error(
+                    "Event handler failed for %s: %s",
+                    event.event_type,
+                    exc,
+                    exc_info=True,
+                )
 
         if awaitables:
-            await asyncio.gather(*awaitables)
+            await asyncio.gather(*awaitables, return_exceptions=True)
 
     def get_handlers(
         self,
