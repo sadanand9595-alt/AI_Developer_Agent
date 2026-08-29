@@ -1,0 +1,107 @@
+"""
+Execution state service for AI Command Center.
+
+Synchronizes task state with the outcome of controlled
+agent execution.
+"""
+
+from __future__ import annotations
+
+from database.models.task import Task
+from database.repositories.task_repository import TaskRepository
+from core.result import Result
+
+
+class ExecutionStateService:
+    """Manage task state after execution results."""
+
+    def __init__(self, repository: TaskRepository) -> None:
+        self._repository = repository
+
+    def mark_success(
+        self,
+        task: Task,
+        result: dict | None = None,
+    ) -> Result[Task]:
+        """Mark a task as completed."""
+
+        try:
+            self._repository.mark_completed(
+                task,
+                result,
+            )
+
+            return Result.ok(task)
+
+        except Exception as exc:
+            return Result.fail(
+                "TASK_COMPLETION_FAILED",
+                str(exc),
+                details={
+                    "task_id": task.id,
+                },
+            )
+
+    def mark_failure(
+        self,
+        task: Task,
+        error: dict | None = None,
+    ) -> Result[Task]:
+        """Mark a task as failed."""
+
+        try:
+            self._repository.mark_failed(
+                task,
+                error,
+            )
+
+            return Result.ok(task)
+
+        except Exception as exc:
+            return Result.fail(
+                "TASK_FAILURE_UPDATE_FAILED",
+                str(exc),
+                details={
+                    "task_id": task.id,
+                },
+            )
+
+    def increment_retry(
+        self,
+        task: Task,
+    ) -> Result[Task]:
+        """Increment the retry count for a task."""
+
+        try:
+            self._repository.increment_retry(task)
+
+            return Result.ok(task)
+
+        except Exception as exc:
+            return Result.fail(
+                "TASK_RETRY_UPDATE_FAILED",
+                str(exc),
+                details={
+                    "task_id": task.id,
+                },
+            )
+
+    def mark_started(
+        self,
+        task: Task,
+    ) -> Result[Task]:
+        """Mark a task as started."""
+
+        try:
+            self._repository.mark_started(task)
+
+            return Result.ok(task)
+
+        except Exception as exc:
+            return Result.fail(
+                "TASK_START_FAILED",
+                str(exc),
+                details={
+                    "task_id": task.id,
+                },
+            )

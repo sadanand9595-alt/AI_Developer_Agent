@@ -1,0 +1,8 @@
+"""
+AI Command Center configuration package.
+
+This package contains application configuration,
+environment handling, and logging configuration.
+"""
+
+__all__ = []

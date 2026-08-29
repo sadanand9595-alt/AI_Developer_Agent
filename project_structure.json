@@ -1,0 +1,632 @@
+﻿[
+    {
+        "File":  "core\\action_executor.py",
+        "Classes":  "class ActionExecutor:",
+        "Functions":  "def __init__( || def execute_step(",
+        "Imports":  "from __future__ import annotations || from typing import Any || from core.action_registry import ActionRegistry || from core.pipeline_context import PipelineContext || from core.planner import PlanStep || from core.result import Result"
+    },
+    {
+        "File":  "core\\action_registry.py",
+        "Classes":  "class ActionRegistry:",
+        "Functions":  "def __init__(self) -\u003e None: || def register( || def unregister( || def get( || def contains( || def list_actions(self) -\u003e tuple[str, ...]: || def count(self) -\u003e int: || def clear(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from threading import RLock || from typing import Any, Callable || from core.result import Result"
+    },
+    {
+        "File":  "core\\agent_runtime.py",
+        "Classes":  "class AgentExecution(Generic[T]): || class AgentRuntime:",
+        "Functions":  "def __init__( || def agent_id(self) -\u003e str: || def status(self) -\u003e AgentStatus: || def start_planning( || def start_running( || def wait( || def mark_error( || def stop( || def disable( || def execute( || def _transition( || def _safe_idle(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass || from typing import Callable, Generic, TypeVar || from core.context import ExecutionContext || from core.lifecycle import AgentLifecycle || from core.result import Result || from core.types import AgentStatus"
+    },
+    {
+        "File":  "core\\agent_runtime_manager.py",
+        "Classes":  "class AgentRuntimeManager:",
+        "Functions":  "def __init__(self) -\u003e None: || def get_or_create( || def get( || def remove( || def contains( || def count(self) -\u003e int: || def clear_idle(self) -\u003e int:",
+        "Imports":  "from __future__ import annotations || from threading import RLock || from core.agent_runtime import AgentRuntime || from core.result import Result"
+    },
+    {
+        "File":  "core\\constants.py",
+        "Classes":  "",
+        "Functions":  "",
+        "Imports":  "from __future__ import annotations"
+    },
+    {
+        "File":  "core\\context.py",
+        "Classes":  "class ExecutionContext:",
+        "Functions":  "def create( || def has_permission(self, permission: str) -\u003e bool: || def require_permission(self, permission: str) -\u003e None: || def with_agent( || def with_working_directory(",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from datetime import datetime, timezone || from uuid import UUID, uuid4 || from core.types import ("
+    },
+    {
+        "File":  "core\\events.py",
+        "Classes":  "class EventType(StrEnum): || class Event: || class TaskEvent(Event): || class AgentEvent(Event): || class ToolEvent(Event): || class ApprovalEvent(Event): || class ValidationEvent(Event):",
+        "Functions":  "def to_dict(self) -\u003e dict[str, Any]:",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from datetime import datetime, timezone || from enum import StrEnum || from typing import Any || from uuid import UUID, uuid4"
+    },
+    {
+        "File":  "core\\event_bus.py",
+        "Classes":  "class EventBus:",
+        "Functions":  "def __init__(self) -\u003e None: || def subscribe( || def unsubscribe( || def clear(self) -\u003e None: || def handler_count(self, event_type: EventType) -\u003e int: || async def publish(self, event: Event) -\u003e None: || async def publish_parallel(self, event: Event) -\u003e None: || def get_handlers(",
+        "Imports":  "from __future__ import annotations || import asyncio || import inspect || from collections import defaultdict || from collections.abc import Awaitable, Callable || from typing import Any || from core.events import Event, EventType"
+    },
+    {
+        "File":  "core\\exceptions.py",
+        "Classes":  "class CommandCenterError(Exception): || class ConfigurationError(CommandCenterError): || class ValidationError(CommandCenterError): || class AuthenticationError(CommandCenterError): || class AuthorizationError(CommandCenterError): || class ApprovalRequiredError(CommandCenterError): || class AgentError(CommandCenterError): || class AgentPlanningError(AgentError): || class AgentExecutionError(AgentError): || class AgentIterationLimitError(AgentError): || class ToolError(CommandCenterError): || class ToolNotFoundError(ToolError): || class ToolPermissionError(ToolError): || class ToolExecutionError(ToolError): || class ToolTimeoutError(ToolError): || class MCPError(CommandCenterError): || class MCPConnectionError(MCPError): || class MCPProtocolError(MCPError): || class RAGError(CommandCenterError): || class DocumentProcessingError(RAGError): || class RetrievalError(RAGError): || class MemoryError(CommandCenterError): || class ExecutionError(CommandCenterError): || class ExecutionTimeoutError(ExecutionError): || class ExecutionCancelledError(ExecutionError): || class RecoveryError(ExecutionError): || class SelfCorrectionError(AgentError):",
+        "Functions":  "def __init__( || def __str__(self) -\u003e str:",
+        "Imports":  "from __future__ import annotations"
+    },
+    {
+        "File":  "core\\execution_application.py",
+        "Classes":  "class ExecutionApplication:",
+        "Functions":  "def __init__( || def start(self) -\u003e ExecutionSystem: || def stop(self) -\u003e None: || def restart(self) -\u003e ExecutionSystem: || def is_running(self) -\u003e bool: || def system(self) -\u003e ExecutionSystem: || def start_execution( || def start_step( || def complete_step( || def complete( || def fail( || def cancel( || def get( || def get_progress( || def get_observation( || def get_audit( || def active_count(self) -\u003e int: || def registered_count(self) -\u003e int: || def audit_count(self) -\u003e int:",
+        "Imports":  "from __future__ import annotations || from core.execution_bootstrap import ExecutionBootstrap || from core.execution_manager import ExecutionRecord || from core.execution_tracker import ExecutionProgress || from core.execution_system import ExecutionSystem"
+    },
+    {
+        "File":  "core\\execution_application_factory.py",
+        "Classes":  "class ExecutionApplicationFactory:",
+        "Functions":  "def create() -\u003e ExecutionApplication:",
+        "Imports":  "from __future__ import annotations || from core.execution_application import ExecutionApplication"
+    },
+    {
+        "File":  "core\\execution_audit.py",
+        "Classes":  "class ExecutionAuditRecord: || class ExecutionAudit:",
+        "Functions":  "def __init__(self) -\u003e None: || def record( || def record_values( || def list_all( || def list_by_execution( || def list_by_event_type( || def list_by_task( || def count(self) -\u003e int: || def clear(self) -\u003e int:",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from datetime import datetime, timezone || from threading import RLock || from typing import Any || from core.execution_event import ExecutionEvent"
+    },
+    {
+        "File":  "core\\execution_audit_service.py",
+        "Classes":  "class ExecutionAuditService:",
+        "Functions":  "def __init__( || def record_event( || def record( || def get_execution( || def get_task( || def get_event_type( || def list_all( || def count(self) -\u003e int: || def clear(self) -\u003e int:",
+        "Imports":  "from __future__ import annotations || from typing import Any || from core.execution_audit import ( || from core.execution_event import ExecutionEvent"
+    },
+    {
+        "File":  "core\\execution_bootstrap.py",
+        "Classes":  "class ExecutionBootstrap:",
+        "Functions":  "def __init__(self) -\u003e None: || def initialize(self) -\u003e ExecutionSystem: || def get(self) -\u003e ExecutionSystem | None: || def is_initialized(self) -\u003e bool: || def shutdown(self) -\u003e None: || def restart(self) -\u003e ExecutionSystem:",
+        "Imports":  "from __future__ import annotations || from threading import RLock || from core.execution_system import ExecutionSystem || from core.execution_system_factory import ("
+    },
+    {
+        "File":  "core\\execution_context.py",
+        "Classes":  "class ExecutionContext:",
+        "Functions":  "def __post_init__(self) -\u003e None: || def create( || def has_permission( || def require_permission( || def with_metadata( || def with_working_directory( || def with_agent(",
+        "Imports":  "from __future__ import annotations || from copy import deepcopy || from dataclasses import dataclass, field || from datetime import datetime, timezone || from uuid import uuid4"
+    },
+    {
+        "File":  "core\\execution_context_application.py",
+        "Classes":  "class ExecutionContextApplication:",
+        "Functions":  "def __init__( || def create( || def register( || def get( || def get_by_execution( || def contains( || def update_metadata( || def update_working_directory( || def update_agent( || def unregister( || def remove( || def remove_by_execution( || def count( || def ids( || def all( || def clear(",
+        "Imports":  "from __future__ import annotations || from core.execution_context import ExecutionContext || from core.execution_context_coordinator import ("
+    },
+    {
+        "File":  "core\\execution_context_application_factory.py",
+        "Classes":  "class ExecutionContextApplicationFactory:",
+        "Functions":  "def create() -\u003e ExecutionContextApplication:",
+        "Imports":  "from __future__ import annotations || from core.execution_context_application import ( || from core.execution_context_coordinator_factory import ("
+    },
+    {
+        "File":  "core\\execution_context_coordinator.py",
+        "Classes":  "class ExecutionContextCoordinator:",
+        "Functions":  "def __init__( || def create( || def register( || def get( || def get_by_execution( || def contains( || def ids( || def update_metadata( || def update_working_directory( || def update_agent( || def unregister( || def remove( || def remove_by_execution( || def count( || def all( || def clear( || def _replace(",
+        "Imports":  "from __future__ import annotations || from core.execution_context import ExecutionContext || from core.execution_context_service import ( || from core.execution_context_registry import ( || from core.execution_context_registry_service import ("
+    },
+    {
+        "File":  "core\\execution_context_coordinator_factory.py",
+        "Classes":  "class ExecutionContextCoordinatorFactory:",
+        "Functions":  "def create(",
+        "Imports":  "from __future__ import annotations || from core.execution_context_coordinator import ( || from core.execution_context_service import ( || from core.execution_context_registry_service import ("
+    },
+    {
+        "File":  "core\\execution_context_factory.py",
+        "Classes":  "class ExecutionContextFactory:",
+        "Functions":  "def create() -\u003e ExecutionContextService:",
+        "Imports":  "from __future__ import annotations || from core.execution_context_service import ("
+    },
+    {
+        "File":  "core\\execution_context_registry.py",
+        "Classes":  "class ExecutionContextRegistry:",
+        "Functions":  "def __init__(self) -\u003e None: || def register( || def unregister( || def get( || def get_by_execution( || def contains( || def count(self) -\u003e int: || def ids(self) -\u003e tuple[str, ...]: || def all( || def clear(self) -\u003e int:",
+        "Imports":  "from __future__ import annotations || from threading import RLock || from core.execution_context import ExecutionContext"
+    },
+    {
+        "File":  "core\\execution_context_registry_factory.py",
+        "Classes":  "class ExecutionContextRegistryFactory:",
+        "Functions":  "def create() -\u003e ExecutionContextRegistryService:",
+        "Imports":  "from __future__ import annotations || from core.execution_context_registry import ( || from core.execution_context_registry_service import ("
+    },
+    {
+        "File":  "core\\execution_context_registry_service.py",
+        "Classes":  "class ExecutionContextRegistryService:",
+        "Functions":  "def __init__( || def register( || def unregister( || def get( || def get_by_execution( || def contains( || def count(self) -\u003e int: || def ids(self) -\u003e tuple[str, ...]: || def all( || def clear(self) -\u003e int:",
+        "Imports":  "from __future__ import annotations || from core.execution_context import ExecutionContext || from core.execution_context_registry import ("
+    },
+    {
+        "File":  "core\\execution_context_runtime.py",
+        "Classes":  "class ExecutionContextRuntime:",
+        "Functions":  "def __post_init__(self) -\u003e None: || def start_step( || def complete_step( || def fail_step( || def set_variable( || def get_variable( || def remove_variable( || def pause(self) -\u003e None: || def resume(self) -\u003e None: || def stop(self) -\u003e None: || def snapshot( || def _ensure_active(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from datetime import datetime, timezone || from threading import RLock || from typing import Any"
+    },
+    {
+        "File":  "core\\execution_context_runtime_application.py",
+        "Classes":  "class ExecutionContextRuntimeApplication:",
+        "Functions":  "def __init__( || def create( || def register( || def get( || def contains( || def start_step( || def complete_step( || def fail_step( || def set_variable( || def get_variable( || def remove_variable( || def pause( || def resume( || def stop( || def unregister( || def snapshot( || def count(self) -\u003e int: || def ids(self) -\u003e tuple[str, ...]: || def all( || def clear(",
+        "Imports":  "from __future__ import annotations || from core.execution_context_runtime import ( || from core.execution_context_runtime_coordinator import ( || from core.execution_context_runtime_coordinator_factory import ("
+    },
+    {
+        "File":  "core\\execution_context_runtime_application_factory.py",
+        "Classes":  "class ExecutionContextRuntimeApplicationFactory:",
+        "Functions":  "def create() -\u003e ExecutionContextRuntimeApplication:",
+        "Imports":  "from __future__ import annotations || from core.execution_context_runtime_application import ( || from core.execution_context_runtime_coordinator_factory import ("
+    },
+    {
+        "File":  "core\\execution_context_runtime_coordinator.py",
+        "Classes":  "class ExecutionContextRuntimeCoordinator:",
+        "Functions":  "def __init__( || def create( || def register( || def get( || def contains( || def start_step( || def complete_step( || def fail_step( || def set_variable( || def get_variable( || def remove_variable( || def pause( || def resume( || def stop( || def unregister( || def count(self) -\u003e int: || def ids(self) -\u003e tuple[str, ...]: || def all( || def snapshot( || def clear( || def _require(",
+        "Imports":  "from __future__ import annotations || from core.execution_context_runtime import ( || from core.execution_context_runtime_service import ( || from core.execution_context_runtime_factory import ("
+    },
+    {
+        "File":  "core\\execution_context_runtime_coordinator_factory.py",
+        "Classes":  "class ExecutionContextRuntimeCoordinatorFactory:",
+        "Functions":  "def create() -\u003e ExecutionContextRuntimeCoordinator:",
+        "Imports":  "from __future__ import annotations || from core.execution_context_runtime_coordinator import ("
+    },
+    {
+        "File":  "core\\execution_context_runtime_factory.py",
+        "Classes":  "class ExecutionContextRuntimeFactory:",
+        "Functions":  "def create() -\u003e ExecutionContextRuntimeService:",
+        "Imports":  "from __future__ import annotations || from core.execution_context_runtime_service import ("
+    },
+    {
+        "File":  "core\\execution_context_runtime_service.py",
+        "Classes":  "class ExecutionContextRuntimeService:",
+        "Functions":  "def __init__(self) -\u003e None: || def create( || def register( || def get( || def contains( || def stop( || def unregister( || def count(self) -\u003e int: || def ids(self) -\u003e tuple[str, ...]: || def all( || def clear(",
+        "Imports":  "from __future__ import annotations || from threading import RLock || from core.execution_context_runtime import ("
+    },
+    {
+        "File":  "core\\execution_context_service.py",
+        "Classes":  "class ExecutionContextService:",
+        "Functions":  "def __init__(self) -\u003e None: || def create( || def register( || def get( || def get_by_execution( || def contains( || def unregister( || def remove_by_execution( || def count(self) -\u003e int: || def all(self) -\u003e tuple[ExecutionContext, ...]: || def clear(self) -\u003e int:",
+        "Imports":  "from __future__ import annotations || from threading import RLock || from core.execution_context import ExecutionContext"
+    },
+    {
+        "File":  "core\\execution_coordinator.py",
+        "Classes":  "class ExecutionCoordinator:",
+        "Functions":  "def __init__( || def execute( || def execute_plan( || def _execute_plan_steps( || def start( || def start_step( || def complete_step( || def complete( || def fail( || def cancel( || def get( || def get_progress( || def get_observation( || def get_audit( || def is_registered( || def registered_count( || def registered_ids( || def active_count( || def audit_count( || def get_runtime( || def get_runtime_snapshot( || def _cleanup_completed_runtime( || def _cleanup_failed_runtime( || def _cleanup_failed_execution( || def close(",
+        "Imports":  "from __future__ import annotations || from core.action_executor import ActionExecutor || from core.action_registry import ActionRegistry || from core.execution_context_runtime_application import ( || from core.execution_facade import ExecutionFacade || from core.execution_manager import ExecutionRecord || from core.execution_registry import ExecutionRegistry || from core.execution_registry_service import ( || from core.execution_tracker import ExecutionProgress || from core.plan_executor import PlanExecutor || from core.planning_pipeline import PlanningPipeline || from core.planner import ExecutionPlan || from core.pipeline_context import PipelineContext || from core.result import Result"
+    },
+    {
+        "File":  "core\\execution_engine.py",
+        "Classes":  "class ExecutionEngine:",
+        "Functions":  "def __init__( || def execute( || def execute_plan( || def coordinator( || def registry(",
+        "Imports":  "from __future__ import annotations || from core.action_registry import ActionRegistry || from core.execution_coordinator import ExecutionCoordinator || from core.pipeline_context import PipelineContext || from core.planner import ExecutionPlan || from core.result import Result"
+    },
+    {
+        "File":  "core\\execution_event.py",
+        "Classes":  "class ExecutionEventType: || class ExecutionEvent:",
+        "Functions":  "def create( || def is_type( || def is_terminal(self) -\u003e bool: || def is_step_event(self) -\u003e bool:",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from datetime import datetime, timezone || from typing import Any"
+    },
+    {
+        "File":  "core\\execution_event_bus.py",
+        "Classes":  "class ExecutionEventBus:",
+        "Functions":  "def __init__(self) -\u003e None: || def subscribe( || def unsubscribe( || def publish( || def listener_count( || def clear( || def event_types(",
+        "Imports":  "from __future__ import annotations || from threading import RLock || from typing import Callable || from core.execution_event import ExecutionEvent"
+    },
+    {
+        "File":  "core\\execution_facade.py",
+        "Classes":  "class ExecutionFacade:",
+        "Functions":  "def __init__( || def start( || def start_step( || def complete_step( || def complete( || def fail( || def cancel( || def get( || def get_progress( || def get_observation( || def get_audit( || def active( || def active_count(self) -\u003e int: || def audit_count(self) -\u003e int: || def close(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from typing import Any || from core.execution_manager import ExecutionRecord || from core.execution_runtime_factory import ( || from core.execution_runtime_service import ( || from core.execution_tracker import ExecutionProgress"
+    },
+    {
+        "File":  "core\\execution_history.py",
+        "Classes":  "class ExecutionHistoryRecord: || class ExecutionHistory:",
+        "Functions":  "def __init__(self) -\u003e None: || def record( || def get( || def list_all( || def list_by_status( || def list_by_task( || def count(self) -\u003e int: || def remove( || def clear(self) -\u003e int:",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from datetime import datetime, timezone || from threading import RLock || from typing import Any"
+    },
+    {
+        "File":  "core\\execution_manager.py",
+        "Classes":  "class ExecutionRecord: || class ExecutionManager:",
+        "Functions":  "def __init__(self) -\u003e None: || def start( || def get( || def complete( || def fail( || def cancel( || def active( || def count( || def active_count( || def clear_completed(self) -\u003e int: || def _finish(",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from datetime import datetime, timezone || from threading import RLock || from typing import Any"
+    },
+    {
+        "File":  "core\\execution_monitor.py",
+        "Classes":  "class ExecutionMonitor:",
+        "Functions":  "def __init__( || def start( || def start_step( || def complete_step( || def fail( || def cancel( || def get_progress( || def get_observation( || def active_progress( || def observation_count(self) -\u003e int: || def close(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from core.execution_event import ( || from core.execution_event_bus import ExecutionEventBus || from core.execution_observer import ( || from core.execution_tracker import ("
+    },
+    {
+        "File":  "core\\execution_observer.py",
+        "Classes":  "class ExecutionObservation: || class ExecutionObserver:",
+        "Functions":  "def progress_percent(self) -\u003e float: || def __init__( || def observe( || def get( || def count(self) -\u003e int: || def all( || def remove( || def clear(self) -\u003e None: || def close(self) -\u003e None: || def _handle_event( || def _apply_event(",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from datetime import datetime, timezone || from threading import RLock || from core.execution_event import ( || from core.execution_event_bus import ExecutionEventBus"
+    },
+    {
+        "File":  "core\\execution_pipeline.py",
+        "Classes":  "class PipelineStage(Generic[T, U]): || class ExecutionPipeline(Generic[T]):",
+        "Functions":  "def execute( || def __init__(self) -\u003e None: || def add_stage( || def stage_names(self) -\u003e tuple[str, ...]: || def stage_count(self) -\u003e int: || def execute( || def clear(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass || from typing import Callable, Generic, TypeVar || from core.result import Result"
+    },
+    {
+        "File":  "core\\execution_pipeline_builder.py",
+        "Classes":  "class ExecutionPipelineBuilder:",
+        "Functions":  "def __init__(self) -\u003e None: || def add_stage( || def add_passthrough_stage( || def stage_count(self) -\u003e int: || def stage_names(self) -\u003e tuple[str, ...]: || def build(self) -\u003e ExecutionPipeline: || def reset(self) -\u003e \"ExecutionPipelineBuilder\":",
+        "Imports":  "from __future__ import annotations || from core.execution_pipeline import ( || from core.result import Result"
+    },
+    {
+        "File":  "core\\execution_registry.py",
+        "Classes":  "class ExecutionRegistry:",
+        "Functions":  "def __init__(self) -\u003e None: || def register( || def unregister( || def get( || def contains( || def count(self) -\u003e int: || def ids(self) -\u003e tuple[str, ...]: || def all( || def clear(self) -\u003e int:",
+        "Imports":  "from __future__ import annotations || from threading import RLock || from typing import Any"
+    },
+    {
+        "File":  "core\\execution_registry_service.py",
+        "Classes":  "class ExecutionRegistryService:",
+        "Functions":  "def __init__( || def register( || def unregister( || def get( || def contains( || def count(self) -\u003e int: || def ids(self) -\u003e tuple[str, ...]: || def all(self) -\u003e tuple[Any, ...]: || def clear(self) -\u003e int:",
+        "Imports":  "from __future__ import annotations || from typing import Any || from core.execution_registry import ExecutionRegistry"
+    },
+    {
+        "File":  "core\\execution_request.py",
+        "Classes":  "class ExecutionRequest:",
+        "Functions":  "def create( || def has_permission( || def with_metadata(",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field"
+    },
+    {
+        "File":  "core\\execution_response.py",
+        "Classes":  "class ExecutionError: || class ExecutionResponse:",
+        "Functions":  "def success_response( || def failure_response( || def is_success(self) -\u003e bool: || def is_failure(self) -\u003e bool: || def require_output(self) -\u003e Any: || def get_metadata(",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from typing import Any"
+    },
+    {
+        "File":  "core\\execution_runtime.py",
+        "Classes":  "class ExecutionRuntime:",
+        "Functions":  "def __init__( || def start( || def start_step( || def complete_step( || def complete( || def fail( || def cancel( || def get( || def get_progress( || def get_observation( || def get_audit( || def active(self) -\u003e tuple[ExecutionRecord, ...]: || def active_count(self) -\u003e int: || def audit_count(self) -\u003e int: || def close(self) -\u003e None: || def _audit_event(",
+        "Imports":  "from __future__ import annotations || from core.execution_audit import ExecutionAudit || from core.execution_audit_service import ExecutionAuditService || from core.execution_event import ( || from core.execution_event_bus import ExecutionEventBus || from core.execution_manager import ( || from core.execution_monitor import ExecutionMonitor || from core.execution_tracker import ExecutionProgress"
+    },
+    {
+        "File":  "core\\execution_runtime_factory.py",
+        "Classes":  "class ExecutionRuntimeFactory:",
+        "Functions":  "def create() -\u003e ExecutionRuntimeService:",
+        "Imports":  "from __future__ import annotations || from core.execution_audit import ExecutionAudit || from core.execution_audit_service import ExecutionAuditService || from core.execution_event_bus import ExecutionEventBus || from core.execution_manager import ExecutionManager || from core.execution_runtime import ExecutionRuntime || from core.execution_runtime_service import ("
+    },
+    {
+        "File":  "core\\execution_runtime_service.py",
+        "Classes":  "class ExecutionRuntimeService:",
+        "Functions":  "def __init__( || def start( || def start_step( || def complete_step( || def complete( || def fail( || def cancel( || def get( || def get_progress( || def get_observation( || def get_audit( || def active( || def active_count(self) -\u003e int: || def audit_count(self) -\u003e int: || def close(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from typing import Any || from core.execution_manager import ExecutionRecord || from core.execution_runtime import ExecutionRuntime || from core.execution_tracker import ExecutionProgress"
+    },
+    {
+        "File":  "core\\execution_service.py",
+        "Classes":  "class ExecutionService:",
+        "Functions":  "def __init__( || def execute( || def _resolve_execution_id( || def _failure_response(",
+        "Imports":  "from __future__ import annotations || from core.execution_engine import ExecutionEngine || from core.execution_request import ExecutionRequest || from core.execution_response import ExecutionResponse || from core.pipeline_context import PipelineContext || from core.result import Result"
+    },
+    {
+        "File":  "core\\execution_system.py",
+        "Classes":  "class ExecutionSystem:",
+        "Functions":  "def __init__( || def start( || def start_step( || def complete_step( || def complete( || def fail( || def cancel( || def get( || def get_progress( || def get_observation( || def get_audit( || def is_registered( || def registered_count(self) -\u003e int: || def registered_ids( || def active_count(self) -\u003e int: || def audit_count(self) -\u003e int: || def close(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from core.execution_coordinator import ExecutionCoordinator || from core.execution_facade import ExecutionFacade || from core.execution_manager import ExecutionRecord || from core.execution_tracker import ExecutionProgress"
+    },
+    {
+        "File":  "core\\execution_system_factory.py",
+        "Classes":  "class ExecutionSystemFactory:",
+        "Functions":  "def create() -\u003e ExecutionSystem:",
+        "Imports":  "from __future__ import annotations || from core.execution_coordinator import ExecutionCoordinator || from core.execution_facade import ExecutionFacade || from core.execution_system import ExecutionSystem"
+    },
+    {
+        "File":  "core\\execution_tracker.py",
+        "Classes":  "class ExecutionProgress: || class ExecutionTracker:",
+        "Functions":  "def progress_percent(self) -\u003e float: || def __init__(self) -\u003e None: || def start( || def get( || def start_step( || def complete_step( || def fail( || def cancel( || def active( || def count(self) -\u003e int: || def remove( || def clear_finished(self) -\u003e int: || def _require(",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from datetime import datetime, timezone || from threading import RLock"
+    },
+    {
+        "File":  "core\\lifecycle.py",
+        "Classes":  "class LifecycleTransition: || class TaskLifecycle: || class AgentLifecycle:",
+        "Functions":  "def can_transition( || def transition( || def can_transition( || def transition(",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass || from core.exceptions import ValidationError || from core.types import AgentStatus, TaskStatus"
+    },
+    {
+        "File":  "core\\pipeline_context.py",
+        "Classes":  "class PipelineContext:",
+        "Functions":  "def set_input( || def set_output( || def add_stage_result( || def get_stage_result( || def set_metadata( || def get_metadata( || def has_metadata( || def clear_stage_results(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from datetime import datetime, timezone || from uuid import uuid4"
+    },
+    {
+        "File":  "core\\planner.py",
+        "Classes":  "class PlanStep: || class ExecutionPlan: || class Planner:",
+        "Functions":  "def step_count(self) -\u003e int: || def create_plan( || def validate_plan(",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from uuid import uuid4 || from core.result import Result"
+    },
+    {
+        "File":  "core\\planning_pipeline.py",
+        "Classes":  "class PlanningPipeline:",
+        "Functions":  "def __init__( || def create_plan(",
+        "Imports":  "from __future__ import annotations || from core.plan_builder import PlanBuilder || from core.plan_validator import PlanValidator || from core.planner import ExecutionPlan || from core.result import Result"
+    },
+    {
+        "File":  "core\\plan_builder.py",
+        "Classes":  "class PlanBuilder:",
+        "Functions":  "def __init__( || def add_step( || def step_count(self) -\u003e int: || def build(self) -\u003e Result[ExecutionPlan]: || def clear(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from core.planner import ExecutionPlan, PlanStep || from core.result import Result || from uuid import uuid4"
+    },
+    {
+        "File":  "core\\plan_executor.py",
+        "Classes":  "class PlanExecutor:",
+        "Functions":  "def __init__( || def execute(",
+        "Imports":  "from __future__ import annotations || from core.action_executor import ActionExecutor || from core.pipeline_context import PipelineContext || from core.planner import ExecutionPlan || from core.result import Result"
+    },
+    {
+        "File":  "core\\plan_validator.py",
+        "Classes":  "class PlanValidator:",
+        "Functions":  "def validate(",
+        "Imports":  "from __future__ import annotations || from core.planner import ExecutionPlan || from core.result import Result"
+    },
+    {
+        "File":  "core\\result.py",
+        "Classes":  "class ErrorInfo: || class Result(Generic[T]):",
+        "Functions":  "def ok(cls, data: T | None = None) -\u003e \"Result[T]\": || def fail( || def is_success(self) -\u003e bool: || def is_failure(self) -\u003e bool: || def require_data(self) -\u003e T:",
+        "Imports":  "from __future__ import annotations || from dataclasses import dataclass, field || from typing import Generic, TypeVar"
+    },
+    {
+        "File":  "core\\types.py",
+        "Classes":  "class TaskStatus(StrEnum): || class ExecutionStatus(StrEnum): || class ApprovalStatus(StrEnum): || class AgentStatus(StrEnum): || class ToolRiskLevel(StrEnum): || class PermissionAction(StrEnum):",
+        "Functions":  "",
+        "Imports":  "from __future__ import annotations || from enum import StrEnum || from typing import NewType"
+    },
+    {
+        "File":  "services\\agent_runtime_service.py",
+        "Classes":  "class AgentRuntimeService:",
+        "Functions":  "def __init__( || def get_runtime( || def activate_runtime( || def remove_runtime( || def has_runtime( || def runtime_count(self) -\u003e int: || def runtime_manager(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy.orm import Session || from core.agent_runtime import AgentRuntime || from core.agent_runtime_manager import AgentRuntimeManager || from core.result import Result || from database.repositories.agent_repository import AgentRepository"
+    },
+    {
+        "File":  "services\\agent_service.py",
+        "Classes":  "class AgentService:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def register_agent( || def get_agent( || def get_agent_by_name( || def list_enabled_agents(self) -\u003e list[Agent]: || def list_agents_by_type( || def activate_agent( || def disable_agent( || def mark_agent_active( || def _get_required_agent(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy.orm import Session || from database.models.agent import Agent || from database.repositories.agent_repository import AgentRepository"
+    },
+    {
+        "File":  "services\\approval_service.py",
+        "Classes":  "class ApprovalService:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def request_approval( || def get_approval( || def get_pending_approvals( || def approve( || def reject( || def expire( || def _get_required_approval(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy.orm import Session || from database.models.approval import ApprovalRequest || from database.repositories.approval_repository import ApprovalRepository"
+    },
+    {
+        "File":  "services\\audit_service.py",
+        "Classes":  "class AuditService:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def record_event( || def get_event( || def get_user_events( || def get_task_events( || def get_action_events(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy.orm import Session || from database.models.audit import AuditLog || from database.repositories.audit_repository import AuditRepository"
+    },
+    {
+        "File":  "services\\conversation_service.py",
+        "Classes":  "class ConversationService:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create_conversation( || def get_conversation( || def list_user_conversations( || def rename_conversation( || def archive_conversation(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy.orm import Session || from database.models.conversation import Conversation || from database.repositories.conversation_repository import ("
+    },
+    {
+        "File":  "services\\execution_orchestrator.py",
+        "Classes":  "class ExecutionOrchestrator:",
+        "Functions":  "def __init__( || def execute(",
+        "Imports":  "from __future__ import annotations || from typing import Callable, TypeVar || from sqlalchemy.orm import Session || from core.context import ExecutionContext || from core.result import Result || from database.repositories.task_repository import TaskRepository || from services.agent_runtime_service import AgentRuntimeService || from services.execution_service import ExecutionService || from services.execution_state_service import ExecutionStateService || from services.task_service import TaskService"
+    },
+    {
+        "File":  "services\\execution_service.py",
+        "Classes":  "class ExecutionService:",
+        "Functions":  "def __init__( || def execute(",
+        "Imports":  "from __future__ import annotations || from typing import Callable, TypeVar || from sqlalchemy.orm import Session || from core.agent_runtime import AgentExecution || from core.context import ExecutionContext || from core.result import Result || from database.repositories.task_repository import TaskRepository || from services.agent_runtime_service import AgentRuntimeService"
+    },
+    {
+        "File":  "services\\execution_state_service.py",
+        "Classes":  "class ExecutionStateService:",
+        "Functions":  "def __init__(self, repository: TaskRepository) -\u003e None: || def mark_success( || def mark_failure( || def increment_retry( || def mark_started(",
+        "Imports":  "from __future__ import annotations || from database.models.task import Task || from database.repositories.task_repository import TaskRepository || from core.result import Result"
+    },
+    {
+        "File":  "services\\memory_service.py",
+        "Classes":  "class MemoryService:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create_memory( || def get_memory( || def get_user_memories( || def access_memory( || def update_importance( || def deactivate_memory( || def _get_required_memory(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy.orm import Session || from database.models.memory import Memory || from database.repositories.memory_repository import ("
+    },
+    {
+        "File":  "services\\message_service.py",
+        "Classes":  "class MessageService:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def add_user_message( || def add_assistant_message( || def add_tool_message( || def get_message( || def get_conversation_messages( || def get_user_messages( || def get_assistant_messages( || def count_messages( || def _create_message(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy.orm import Session || from database.models.message import Message, MessageRole || from database.repositories.message_repository import ("
+    },
+    {
+        "File":  "services\\task_service.py",
+        "Classes":  "class TaskService:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create_task( || def get_task( || def list_user_tasks( || def list_pending_tasks(self) -\u003e list[Task]: || def start_task( || def complete_task( || def fail_task( || def retry_task( || def _get_required_task(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy.orm import Session || from database.models.task import Task || from database.repositories.task_repository import TaskRepository"
+    },
+    {
+        "File":  "services\\tool_service.py",
+        "Classes":  "class ToolService:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def register_tool( || def get_tool( || def get_tool_by_name( || def list_enabled_tools(self) -\u003e list[Tool]: || def list_tools_by_risk( || def enable_tool( || def disable_tool( || def mark_tool_used( || def requires_approval( || def _get_required_tool(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy.orm import Session || from core.types import ToolRiskLevel || from database.models.tool import Tool || from database.repositories.tool_repository import ToolRepository"
+    },
+    {
+        "File":  "services\\user_service.py",
+        "Classes":  "class UserService:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create_user( || def get_user( || def get_user_by_email( || def list_active_users(self) -\u003e list[User]: || def update_name( || def deactivate_user(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy.orm import Session || from database.models.user import User || from database.repositories.user_repository import UserRepository"
+    },
+    {
+        "File":  "services\\__init__.py",
+        "Classes":  "",
+        "Functions":  "",
+        "Imports":  ""
+    },
+    {
+        "File":  "database\\base.py",
+        "Classes":  "class Base(DeclarativeBase):",
+        "Functions":  "",
+        "Imports":  "from __future__ import annotations || from sqlalchemy.orm import DeclarativeBase"
+    },
+    {
+        "File":  "database\\connection.py",
+        "Classes":  "",
+        "Functions":  "def _create_engine() -\u003e Engine: || def get_session() -\u003e Generator[Session, None, None]:",
+        "Imports":  "from __future__ import annotations || from collections.abc import Generator || from sqlalchemy import Engine, create_engine || from sqlalchemy.orm import Session, sessionmaker || from config.settings import settings"
+    },
+    {
+        "File":  "database\\health.py",
+        "Classes":  "",
+        "Functions":  "def check_database() -\u003e Result[dict[str, object]]:",
+        "Imports":  "from __future__ import annotations || from sqlalchemy import text || from core.result import Result || from database.connection import engine"
+    },
+    {
+        "File":  "database\\initializer.py",
+        "Classes":  "",
+        "Functions":  "def initialize_database() -\u003e None: || def get_table_names() -\u003e list[str]:",
+        "Imports":  "from __future__ import annotations || from sqlalchemy import inspect || from database.base import Base || from database.connection import engine || from database import models  # noqa: F401"
+    },
+    {
+        "File":  "database\\session.py",
+        "Classes":  "",
+        "Functions":  "def create_session() -\u003e Session: || def get_session() -\u003e Generator[Session, None, None]: || def session_scope() -\u003e Generator[Session, None, None]:",
+        "Imports":  "from __future__ import annotations || from collections.abc import Generator || from contextlib import contextmanager || from sqlalchemy.orm import Session || from database.connection import SessionLocal"
+    },
+    {
+        "File":  "database\\transaction.py",
+        "Classes":  "",
+        "Functions":  "def execute_transaction( || def execute_read(",
+        "Imports":  "from __future__ import annotations || from collections.abc import Callable || from typing import TypeVar || from sqlalchemy.orm import Session || from database.session import create_session"
+    },
+    {
+        "File":  "database\\__init__.py",
+        "Classes":  "",
+        "Functions":  "",
+        "Imports":  ""
+    },
+    {
+        "File":  "database\\models\\agent.py",
+        "Classes":  "class Agent(Base):",
+        "Functions":  "def __repr__(self) -\u003e str: || def activate(self) -\u003e None: || def disable(self) -\u003e None: || def mark_active(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from datetime import datetime, timezone || from uuid import uuid4 || from sqlalchemy import Boolean, DateTime, JSON, String, Text || from sqlalchemy.orm import Mapped, mapped_column || from core.types import AgentStatus || from database.base import Base"
+    },
+    {
+        "File":  "database\\models\\approval.py",
+        "Classes":  "class ApprovalRequest(Base):",
+        "Functions":  "def __repr__(self) -\u003e str: || def approve( || def reject( || def expire(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from datetime import datetime, timezone || from uuid import uuid4 || from sqlalchemy import DateTime, ForeignKey, JSON, String, Text || from sqlalchemy.orm import Mapped, mapped_column || from core.types import ApprovalStatus || from database.base import Base"
+    },
+    {
+        "File":  "database\\models\\audit.py",
+        "Classes":  "class AuditLog(Base):",
+        "Functions":  "def __repr__(self) -\u003e str:",
+        "Imports":  "from __future__ import annotations || from datetime import datetime, timezone || from uuid import uuid4 || from sqlalchemy import DateTime, ForeignKey, JSON, String, Text || from sqlalchemy.orm import Mapped, mapped_column || from database.base import Base"
+    },
+    {
+        "File":  "database\\models\\conversation.py",
+        "Classes":  "class Conversation(Base):",
+        "Functions":  "def __repr__(self) -\u003e str: || def archive(self) -\u003e None: || def rename(self, title: str) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from datetime import datetime, timezone || from uuid import uuid4 || from sqlalchemy import DateTime, ForeignKey, String, Text || from sqlalchemy.orm import Mapped, mapped_column || from database.base import Base"
+    },
+    {
+        "File":  "database\\models\\memory.py",
+        "Classes":  "class Memory(Base):",
+        "Functions":  "def __repr__(self) -\u003e str: || def mark_accessed(self) -\u003e None: || def deactivate(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from datetime import datetime, timezone || from uuid import uuid4 || from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, Text || from sqlalchemy.orm import Mapped, mapped_column || from database.base import Base"
+    },
+    {
+        "File":  "database\\models\\message.py",
+        "Classes":  "class MessageRole(StrEnum): || class Message(Base):",
+        "Functions":  "def __repr__(self) -\u003e str:",
+        "Imports":  "from __future__ import annotations || from datetime import datetime, timezone || from enum import StrEnum || from uuid import uuid4 || from sqlalchemy import DateTime, ForeignKey, JSON, String, Text || from sqlalchemy.orm import Mapped, mapped_column || from database.base import Base"
+    },
+    {
+        "File":  "database\\models\\session.py",
+        "Classes":  "class UserSession(Base):",
+        "Functions":  "def __repr__(self) -\u003e str: || def revoke(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from datetime import datetime, timezone || from uuid import uuid4 || from sqlalchemy import Boolean, DateTime, ForeignKey, String || from sqlalchemy.orm import Mapped, mapped_column || from database.base import Base"
+    },
+    {
+        "File":  "database\\models\\task.py",
+        "Classes":  "class Task(Base):",
+        "Functions":  "def __repr__(self) -\u003e str: || def mark_started(self) -\u003e None: || def mark_completed( || def mark_failed( || def increment_retry(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from datetime import datetime, timezone || from uuid import uuid4 || from sqlalchemy import DateTime, ForeignKey, JSON, String, Text || from sqlalchemy.orm import Mapped, mapped_column || from core.types import TaskStatus || from database.base import Base"
+    },
+    {
+        "File":  "database\\models\\tool.py",
+        "Classes":  "class Tool(Base):",
+        "Functions":  "def __repr__(self) -\u003e str: || def enable(self) -\u003e None: || def disable(self) -\u003e None: || def mark_used(self) -\u003e None:",
+        "Imports":  "from __future__ import annotations || from datetime import datetime, timezone || from uuid import uuid4 || from sqlalchemy import Boolean, DateTime, JSON, String, Text || from sqlalchemy.orm import Mapped, mapped_column || from core.types import ToolRiskLevel || from database.base import Base"
+    },
+    {
+        "File":  "database\\models\\user.py",
+        "Classes":  "class User(Base):",
+        "Functions":  "def __repr__(self) -\u003e str:",
+        "Imports":  "from __future__ import annotations || from datetime import datetime, timezone || from uuid import uuid4 || from sqlalchemy import Boolean, DateTime, String || from sqlalchemy.orm import Mapped, mapped_column || from database.base import Base"
+    },
+    {
+        "File":  "database\\models\\__init__.py",
+        "Classes":  "",
+        "Functions":  "",
+        "Imports":  "from database.models.agent import Agent || from database.models.approval import ApprovalRequest || from database.models.audit import AuditLog || from database.models.conversation import Conversation || from database.models.memory import Memory || from database.models.message import Message || from database.models.session import UserSession || from database.models.task import Task || from database.models.tool import Tool || from database.models.user import User"
+    },
+    {
+        "File":  "database\\repositories\\agent_repository.py",
+        "Classes":  "class AgentRepository:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create( || def get_by_id( || def get_by_name( || def list_enabled(self) -\u003e list[Agent]: || def list_by_type( || def activate( || def disable( || def mark_active(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy import select || from sqlalchemy.orm import Session || from core.types import AgentStatus || from database.models.agent import Agent"
+    },
+    {
+        "File":  "database\\repositories\\approval_repository.py",
+        "Classes":  "class ApprovalRepository:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create( || def get_by_id( || def list_pending( || def approve( || def reject( || def expire(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy import select || from sqlalchemy.orm import Session || from core.types import ApprovalStatus || from database.models.approval import ApprovalRequest"
+    },
+    {
+        "File":  "database\\repositories\\audit_repository.py",
+        "Classes":  "class AuditRepository:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create( || def get_by_id( || def list_by_user( || def list_by_task( || def list_by_action(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy import select || from sqlalchemy.orm import Session || from database.models.audit import AuditLog"
+    },
+    {
+        "File":  "database\\repositories\\conversation_repository.py",
+        "Classes":  "class ConversationRepository:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create( || def get_by_id( || def list_by_user( || def rename( || def archive(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy import select || from sqlalchemy.orm import Session || from database.models.conversation import Conversation"
+    },
+    {
+        "File":  "database\\repositories\\memory_repository.py",
+        "Classes":  "class MemoryRepository:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create( || def get_by_id( || def list_by_user( || def mark_accessed( || def deactivate( || def update_importance(",
+        "Imports":  "from __future__ import annotations || from datetime import datetime, timezone || from sqlalchemy import select || from sqlalchemy.orm import Session || from database.models.memory import Memory"
+    },
+    {
+        "File":  "database\\repositories\\message_repository.py",
+        "Classes":  "class MessageRepository:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create( || def get_by_id( || def list_by_conversation( || def list_by_role( || def count(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy import select || from sqlalchemy.orm import Session || from database.models.message import Message, MessageRole"
+    },
+    {
+        "File":  "database\\repositories\\task_repository.py",
+        "Classes":  "class TaskRepository:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create( || def get_by_id( || def list_by_user( || def list_pending(self) -\u003e list[Task]: || def mark_started( || def mark_completed( || def mark_failed( || def increment_retry(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy import select || from sqlalchemy.orm import Session || from core.types import TaskStatus || from database.models.task import Task"
+    },
+    {
+        "File":  "database\\repositories\\test_task_repository_manual.py",
+        "Classes":  "",
+        "Functions":  "def main() -\u003e None:",
+        "Imports":  "from database.repositories.task_repository import TaskRepository || from database.repositories.user_repository import UserRepository || from database.session import session_scope"
+    },
+    {
+        "File":  "database\\repositories\\tool_repository.py",
+        "Classes":  "class ToolRepository:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create( || def get_by_id( || def get_by_name( || def list_enabled(self) -\u003e list[Tool]: || def list_by_risk( || def enable( || def disable( || def mark_used(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy import select || from sqlalchemy.orm import Session || from core.types import ToolRiskLevel || from database.models.tool import Tool"
+    },
+    {
+        "File":  "database\\repositories\\user_repository.py",
+        "Classes":  "class UserRepository:",
+        "Functions":  "def __init__(self, session: Session) -\u003e None: || def create( || def get_by_id( || def get_by_email( || def list_active( || def update_name( || def deactivate(",
+        "Imports":  "from __future__ import annotations || from sqlalchemy import select || from sqlalchemy.orm import Session || from database.models.user import User"
+    },
+    {
+        "File":  "database\\repositories\\__init__.py",
+        "Classes":  "",
+        "Functions":  "",
+        "Imports":  ""
+    }
+]

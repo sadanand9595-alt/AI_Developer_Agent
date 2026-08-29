@@ -1,0 +1,18 @@
+"""
+Core foundation for AI Command Center.
+
+This package contains the fundamental types, contracts,
+events, lifecycle management, execution context, and
+shared exceptions used throughout the system.
+"""
+
+__all__ = [
+    "types",
+    "constants",
+    "exceptions",
+    "result",
+    "events",
+    "event_bus",
+    "lifecycle",
+    "context",
+]
