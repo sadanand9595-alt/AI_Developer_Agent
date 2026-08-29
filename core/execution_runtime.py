@@ -19,7 +19,7 @@ from core.execution_manager import (
     ExecutionRecord,
 )
 from core.execution_monitor import ExecutionMonitor
-from core.execution_tracker import ExecutionProgress
+from core.execution_tracker import ExecutionProgress, ExecutionTracker
 
 
 class ExecutionRuntime:
@@ -52,10 +52,7 @@ class ExecutionRuntime:
         )
 
         self._monitor = ExecutionMonitor(
-            tracker=__import__(
-                "core.execution_tracker",
-                fromlist=["ExecutionTracker"],
-            ).ExecutionTracker(),
+            tracker=ExecutionTracker(),
             event_bus=self._event_bus,
         )
 
@@ -272,4 +269,4 @@ class ExecutionRuntime:
 
         self._audit_service.record_event(
             event
-        )
+        )```
