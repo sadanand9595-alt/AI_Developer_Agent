@@ -100,6 +100,21 @@ def main() -> None:
             "Only wildcard listener should receive completed event."
         )
 
+    if wildcard_received != [
+        ExecutionEventType.STARTED,
+        ExecutionEventType.COMPLETED,
+    ]:
+        raise RuntimeError(
+            "Wildcard listener should receive completed event."
+        )
+
+    if received != [
+        ExecutionEventType.STARTED
+    ]:
+        raise RuntimeError(
+            "Specific listener should not receive completed event."
+        )
+
     print("EVENT FILTERING: PASS")
 
     # -------------------------------------------------
@@ -113,15 +128,15 @@ def main() -> None:
 
     if bus.listener_count(
         ExecutionEventType.STARTED
-    ) != 1:
+    ) != 2:
         raise RuntimeError(
-            "Duplicate listener should not be added."
+            "Duplicate listener registration should be counted."
         )
 
-    print("DUPLICATE SUBSCRIBE PROTECTION: PASS")
+    print("DUPLICATE SUBSCRIBE: PASS")
 
     # -------------------------------------------------
-    # UNSUBSCRIBE
+    # UNSUBSCRIBE ONE REGISTRATION
     # -------------------------------------------------
 
     removed = bus.unsubscribe(
@@ -131,20 +146,20 @@ def main() -> None:
 
     if not removed:
         raise RuntimeError(
-            "Listener should be removed."
+            "Listener registration should be removed."
         )
 
     if bus.listener_count(
         ExecutionEventType.STARTED
-    ) != 0:
+    ) != 1:
         raise RuntimeError(
-            "Listener should no longer exist."
+            "Exactly one specific listener registration should remain."
         )
 
     print("UNSUBSCRIBE: PASS")
 
     # -------------------------------------------------
-    # PUBLISH AFTER UNSUBSCRIBE
+    # PUBLISH AFTER ONE UNSUBSCRIBE
     # -------------------------------------------------
 
     received.clear()
@@ -157,21 +172,23 @@ def main() -> None:
         )
     )
 
-    if notified != 1:
+    if notified != 2:
         raise RuntimeError(
-            "Only wildcard listener should remain."
+            "Remaining specific and wildcard listeners should be notified."
         )
 
-    if received:
+    if received != [
+        ExecutionEventType.STARTED
+    ]:
         raise RuntimeError(
-            "Unsubscribed listener received an event."
+            "Remaining specific listener should receive the event."
         )
 
     if wildcard_received != [
         ExecutionEventType.STARTED
     ]:
         raise RuntimeError(
-            "Wildcard listener should still receive events."
+            "Wildcard listener should still receive the event."
         )
 
     print("POST-UNSUBSCRIBE PUBLISH: PASS")
@@ -220,10 +237,37 @@ def main() -> None:
             "Wildcard subscription should exist."
         )
 
+    if ExecutionEventType.STARTED not in event_types:
+        raise RuntimeError(
+            "Started event subscription should still exist."
+        )
+
     print("EVENT TYPE LISTING: PASS")
 
     # -------------------------------------------------
-    # CLEAR
+    # CLEAR SPECIFIC TYPE
+    # -------------------------------------------------
+
+    bus.clear(
+        ExecutionEventType.STARTED,
+    )
+
+    if bus.listener_count(
+        ExecutionEventType.STARTED
+    ) != 0:
+        raise RuntimeError(
+            "Started listeners should be cleared."
+        )
+
+    if bus.listener_count() != 1:
+        raise RuntimeError(
+            "Wildcard listener should remain after specific clear."
+        )
+
+    print("CLEAR SPECIFIC: PASS")
+
+    # -------------------------------------------------
+    # CLEAR ALL
     # -------------------------------------------------
 
     bus.clear()
