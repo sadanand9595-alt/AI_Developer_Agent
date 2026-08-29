@@ -269,4 +269,4 @@ class ExecutionRuntime:
 
         self._audit_service.record_event(
             event
-        )```
+        )
