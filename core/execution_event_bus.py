@@ -57,8 +57,7 @@ class ExecutionEventBus:
                 [],
             )
 
-            if listener not in listeners:
-                listeners.append(listener)
+            listeners.append(listener)
 
     def unsubscribe(
         self,
@@ -104,7 +103,12 @@ class ExecutionEventBus:
         """
         Publish an event.
 
-        Returns the number of listeners notified.
+        Returns the number of listener registrations attempted,
+        including listeners that subsequently raise.
+
+        Listener exceptions are isolated: a single raising
+        listener does not prevent the remaining listeners
+        from being notified.
         """
 
         if not isinstance(
@@ -131,21 +135,14 @@ class ExecutionEventBus:
             )
 
         notified = 0
-        called: set[int] = set()
 
         for listener in (
             specific + wildcard
         ):
-            listener_id = id(listener)
-
-            if listener_id in called:
-                continue
-
-            called.add(listener_id)
+            notified += 1
 
             try:
                 listener(event)
-                notified += 1
             except Exception:
                 continue
 
