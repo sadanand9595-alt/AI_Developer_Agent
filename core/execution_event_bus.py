@@ -143,8 +143,11 @@ class ExecutionEventBus:
 
             called.add(listener_id)
 
-            listener(event)
-            notified += 1
+            try:
+                listener(event)
+                notified += 1
+            except Exception:
+                continue
 
         return notified
 
