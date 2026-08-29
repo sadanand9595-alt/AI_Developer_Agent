@@ -23,6 +23,7 @@ class ExecutionContextService:
         self,
         *,
         execution_id: str,
+        user_id: str | None = None,
         task_id: str | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
@@ -37,6 +38,7 @@ class ExecutionContextService:
 
         context = ExecutionContext.create(
             execution_id=execution_id,
+            user_id=user_id,
             task_id=task_id,
             session_id=session_id,
             agent_id=agent_id,

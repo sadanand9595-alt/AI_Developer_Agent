@@ -18,6 +18,7 @@ class ExecutionContext:
     """Immutable context associated with one execution."""
 
     execution_id: str
+    user_id: str | None = None
     task_id: str | None = None
     session_id: str | None = None
     agent_id: str | None = None
@@ -70,6 +71,7 @@ class ExecutionContext:
         cls,
         *,
         execution_id: str,
+        user_id: str | None = None,
         task_id: str | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
@@ -93,6 +95,7 @@ class ExecutionContext:
 
         return cls(
             execution_id=normalized_execution_id,
+            user_id=user_id,
             task_id=task_id,
             session_id=session_id,
             agent_id=agent_id,
@@ -152,6 +155,7 @@ class ExecutionContext:
 
         return ExecutionContext(
             execution_id=self.execution_id,
+            user_id=self.user_id,
             task_id=self.task_id,
             session_id=self.session_id,
             agent_id=self.agent_id,
@@ -176,6 +180,7 @@ class ExecutionContext:
 
         return ExecutionContext(
             execution_id=self.execution_id,
+            user_id=self.user_id,
             task_id=self.task_id,
             session_id=self.session_id,
             agent_id=self.agent_id,
@@ -202,6 +207,7 @@ class ExecutionContext:
 
         return ExecutionContext(
             execution_id=self.execution_id,
+            user_id=self.user_id,
             task_id=self.task_id,
             session_id=self.session_id,
             agent_id=agent_id,
