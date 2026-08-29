@@ -51,3 +51,4 @@ embeddings/
 # Secrets
 *.pem
 *.key
+.aider*
