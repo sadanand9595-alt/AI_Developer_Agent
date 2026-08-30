@@ -36,6 +36,21 @@ class Result(Generic[T]):
     data: T | None = None
     error: ErrorInfo | None = None
 
+    def __post_init__(self) -> None:
+        """
+        Reject an internally inconsistent Result.
+
+        A successful result must never carry error information --
+        require_data() trusts `success` alone and would otherwise
+        silently return None instead of surfacing a real error that
+        was mistakenly attached to a "successful" result.
+        """
+
+        if self.success and self.error is not None:
+            raise ValueError(
+                "A successful Result cannot carry error information."
+            )
+
     @classmethod
     def ok(cls, data: T | None = None) -> "Result[T]":
         """Create a successful result."""
