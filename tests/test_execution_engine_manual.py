@@ -1,6 +1,7 @@
 from core.action_registry import ActionRegistry
 from core.execution_engine import ExecutionEngine
 from core.pipeline_context import PipelineContext
+from core.planner import ExecutionPlan, PlanStep
 from core.result import Result
 
 
@@ -182,6 +183,105 @@ def main() -> None:
         )
 
     print("FAILURE PROPAGATION: PASS")
+
+    # -------------------------------------------------
+    # INVALID REQUEST TYPE
+    # -------------------------------------------------
+    #
+    # A non-string request must return a Result failure,
+    # not raise deep inside the planning pipeline.
+    # -------------------------------------------------
+
+    for invalid_request in (None, 123, ["not", "a", "string"]):
+        invalid_request_result = engine.execute(
+            request=invalid_request,
+            steps=steps,
+            context=PipelineContext(
+                task_id="invalid-request-task",
+            ),
+        )
+
+        if invalid_request_result.is_success():
+            raise RuntimeError(
+                "Non-string request should be rejected."
+            )
+
+        if invalid_request_result.error.code != (
+            "INVALID_REQUEST"
+        ):
+            raise RuntimeError(
+                "Unexpected invalid request error: "
+                f"{invalid_request_result.error.code}"
+            )
+
+    print("INVALID REQUEST TYPE: PASS")
+
+    # -------------------------------------------------
+    # EXECUTE_PLAN INTEGRATION
+    # -------------------------------------------------
+
+    plan = ExecutionPlan(
+        plan_id="engine-manual-plan",
+        request="Pre-built plan test.",
+        steps=(
+            PlanStep(
+                step_id="step-1",
+                name="analyze",
+                description="Analyze requirements.",
+                action="analyze_requirements",
+                order=1,
+            ),
+        ),
+        metadata={},
+    )
+
+    plan_context = PipelineContext(
+        execution_id="engine-manual-plan-execution",
+        task_id="task-002",
+    )
+
+    plan_result = engine.execute_plan(
+        plan=plan,
+        context=plan_context,
+    )
+
+    if plan_result.is_failure():
+        raise RuntimeError(
+            plan_result.error.message
+        )
+
+    if plan_context.get_metadata(
+        "execution_status"
+    ) != "completed":
+        raise RuntimeError(
+            "execute_plan() should complete successfully."
+        )
+
+    print("EXECUTE_PLAN INTEGRATION: PASS")
+
+    # -------------------------------------------------
+    # EXECUTE_PLAN INVALID PLAN TYPE
+    # -------------------------------------------------
+
+    invalid_plan_result = engine.execute_plan(
+        plan="not-a-plan",
+        context=PipelineContext(),
+    )
+
+    if invalid_plan_result.is_success():
+        raise RuntimeError(
+            "Invalid plan type should be rejected."
+        )
+
+    if invalid_plan_result.error.code != (
+        "INVALID_EXECUTION_PLAN"
+    ):
+        raise RuntimeError(
+            "Unexpected invalid plan error: "
+            f"{invalid_plan_result.error.code}"
+        )
+
+    print("EXECUTE_PLAN VALIDATION: PASS")
 
     print()
     print("=" * 60)

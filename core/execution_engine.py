@@ -44,6 +44,15 @@ class ExecutionEngine:
         """
 
         if not isinstance(
+            request,
+            str,
+        ):
+            return Result.fail(
+                "INVALID_REQUEST",
+                "Expected request to be a string.",
+            )
+
+        if not isinstance(
             context,
             PipelineContext,
         ):
