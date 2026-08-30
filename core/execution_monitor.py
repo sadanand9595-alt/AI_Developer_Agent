@@ -139,6 +139,23 @@ class ExecutionMonitor:
 
         return progress
 
+    def complete(
+        self,
+        execution_id: str,
+    ) -> ExecutionProgress:
+        """
+        Finalize tracked progress for an execution that completes
+        without a driving step (e.g. a zero-step plan).
+
+        Unlike other monitor operations, this does not publish an
+        event: callers use this to reconcile tracker state after
+        the execution's COMPLETED event has already been published.
+        """
+
+        return self._tracker.complete(
+            execution_id
+        )
+
     def fail(
         self,
         execution_id: str,

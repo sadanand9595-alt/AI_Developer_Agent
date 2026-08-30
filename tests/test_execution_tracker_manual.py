@@ -293,6 +293,45 @@ def main() -> None:
     print("CANCEL TRACKING: PASS")
 
     # -------------------------------------------------
+    # NON-STEP-DRIVEN COMPLETION (ZERO-STEP EXECUTION)
+    # -------------------------------------------------
+
+    tracker.start(
+        "execution-005",
+        total_steps=0,
+    )
+
+    zero_step = tracker.get(
+        "execution-005"
+    )
+
+    if zero_step.status != "running":
+        raise RuntimeError(
+            "Zero-step execution should start as running."
+        )
+
+    completed = tracker.complete(
+        "execution-005"
+    )
+
+    if completed.status != "completed":
+        raise RuntimeError(
+            "Execution should be marked completed."
+        )
+
+    if completed.current_step is not None:
+        raise RuntimeError(
+            "Current step should be cleared on completion."
+        )
+
+    if completed.completed_steps != completed.total_steps:
+        raise RuntimeError(
+            "Completed steps should match total steps."
+        )
+
+    print("NON-STEP-DRIVEN COMPLETION: PASS")
+
+    # -------------------------------------------------
     # ACTIVE EXECUTIONS
     # -------------------------------------------------
 

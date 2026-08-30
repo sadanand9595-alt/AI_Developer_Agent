@@ -196,6 +196,35 @@ class ExecutionTracker:
 
             return progress
 
+    def complete(
+        self,
+        execution_id: str,
+    ) -> ExecutionProgress:
+        """
+        Mark an execution as completed without a driving step.
+
+        Used when an execution completes without progressing
+        through individually tracked steps (e.g. zero-step plans),
+        so tracked progress stays consistent with the execution's
+        lifecycle status.
+        """
+
+        progress = self._require(
+            execution_id
+        )
+
+        with self._lock:
+            progress.completed_steps = (
+                progress.total_steps
+            )
+            progress.current_step = None
+            progress.status = "completed"
+            progress.updated_at = datetime.now(
+                timezone.utc
+            )
+
+            return progress
+
     def fail(
         self,
         execution_id: str,

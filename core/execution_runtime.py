@@ -136,6 +136,29 @@ class ExecutionRuntime:
             metadata=metadata,
         )
 
+        # -----------------------------------------------------
+        # Reconcile tracked progress for executions that complete
+        # without a driving step (e.g. zero-step plans). Step-driven
+        # completions already transition the tracker to "completed"
+        # via complete_step, so this is a no-op in that case.
+        # -----------------------------------------------------
+
+        progress = self._monitor.get_progress(
+            execution_id
+        )
+
+        if (
+            progress is not None
+            and progress.status not in {
+                "completed",
+                "failed",
+                "cancelled",
+            }
+        ):
+            self._monitor.complete(
+                execution_id
+            )
+
         self._event_bus.publish(
             ExecutionEvent.create(
                 event_type=ExecutionEventType.COMPLETED,

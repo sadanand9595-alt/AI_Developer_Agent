@@ -230,6 +230,43 @@ def test_execution_runtime_full_lifecycle():
 
         assert runtime.audit_count() > 0
 
+        # -------------------------------------------------
+        # ZERO-STEP EXECUTION (NON-STEP-DRIVEN COMPLETION)
+        # -------------------------------------------------
+
+        runtime.start(
+            "execution-004",
+            task_id="task-004",
+            total_steps=0,
+        )
+
+        zero_step_progress = runtime.get_progress(
+            "execution-004"
+        )
+
+        assert zero_step_progress is not None
+        assert zero_step_progress.status == "running"
+
+        zero_step_record = runtime.complete(
+            "execution-004",
+        )
+
+        assert zero_step_record.status == "completed"
+
+        zero_step_progress = runtime.get_progress(
+            "execution-004"
+        )
+
+        assert zero_step_progress is not None
+        assert zero_step_progress.status == "completed"
+
+        zero_step_observation = runtime.get_observation(
+            "execution-004"
+        )
+
+        assert zero_step_observation is not None
+        assert zero_step_observation.status == "completed"
+
     finally:
         # -------------------------------------------------
         # CLOSE
