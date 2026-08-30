@@ -36,6 +36,14 @@ class ExecutionContextService:
     ) -> ExecutionContext:
         """Create and register a new execution context."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            raise ValueError(
+                "Execution ID must be a string."
+            )
+
         context = ExecutionContext.create(
             execution_id=execution_id,
             user_id=user_id,
@@ -96,6 +104,12 @@ class ExecutionContextService:
     ) -> ExecutionContext | None:
         """Return a context by context ID."""
 
+        if not isinstance(
+            context_id,
+            str,
+        ):
+            return None
+
         normalized_id = context_id.strip()
 
         if not normalized_id:
@@ -111,6 +125,12 @@ class ExecutionContextService:
         execution_id: str,
     ) -> ExecutionContext | None:
         """Return the context associated with an execution."""
+
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return None
 
         normalized_id = execution_id.strip()
 
@@ -137,6 +157,12 @@ class ExecutionContextService:
         context_id: str,
     ) -> bool:
         """Remove a context by context ID."""
+
+        if not isinstance(
+            context_id,
+            str,
+        ):
+            return False
 
         normalized_id = context_id.strip()
 

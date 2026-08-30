@@ -322,6 +322,74 @@ def main() -> None:
 
     print("CLEAR: PASS")
 
+    # -------------------------------------------------
+    # NON-STRING ID (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+    #
+    # A non-string execution_id/context_id must be
+    # rejected via each method's existing contract
+    # (raise for create(), False/None for the lookup
+    # methods), never raise an unrelated exception.
+    # -------------------------------------------------
+
+    for bad_id in (None, 123, ["not", "a", "string"]):
+        try:
+            service.create(execution_id=bad_id)
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "create raised unexpected exception for "
+                f"{bad_id!r}: {type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"create should reject non-string id {bad_id!r}."
+            )
+
+        try:
+            get_result = service.get(bad_id)
+            get_by_execution_result = (
+                service.get_by_execution(bad_id)
+            )
+            contains_result = service.contains(bad_id)
+            unregister_result = service.unregister(bad_id)
+            remove_by_execution_result = (
+                service.remove_by_execution(bad_id)
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "Lookup method raised unexpected exception for "
+                f"{bad_id!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if get_result is not None:
+            raise RuntimeError(
+                f"get should return None for {bad_id!r}."
+            )
+
+        if get_by_execution_result is not None:
+            raise RuntimeError(
+                f"get_by_execution should return None for {bad_id!r}."
+            )
+
+        if contains_result is not False:
+            raise RuntimeError(
+                f"contains should return False for {bad_id!r}."
+            )
+
+        if unregister_result is not False:
+            raise RuntimeError(
+                f"unregister should return False for {bad_id!r}."
+            )
+
+        if remove_by_execution_result is not False:
+            raise RuntimeError(
+                f"remove_by_execution should return False for {bad_id!r}."
+            )
+
+    print("NON-STRING ID SAFETY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION CONTEXT SERVICE: PASS")
