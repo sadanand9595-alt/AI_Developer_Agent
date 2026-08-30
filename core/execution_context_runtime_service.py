@@ -30,6 +30,14 @@ class ExecutionContextRuntimeService:
     ) -> ExecutionContextRuntime:
         """Create and register a runtime."""
 
+        if not isinstance(
+            context_id,
+            str,
+        ):
+            raise ValueError(
+                "Context ID must be a string."
+            )
+
         normalized_id = context_id.strip()
 
         if not normalized_id:
@@ -89,6 +97,12 @@ class ExecutionContextRuntimeService:
     ) -> ExecutionContextRuntime | None:
         """Return a runtime by context ID."""
 
+        if not isinstance(
+            context_id,
+            str,
+        ):
+            return None
+
         normalized_id = context_id.strip()
 
         if not normalized_id:
@@ -131,6 +145,12 @@ class ExecutionContextRuntimeService:
         stop: bool = True,
     ) -> bool:
         """Remove a runtime, optionally stopping it first."""
+
+        if not isinstance(
+            context_id,
+            str,
+        ):
+            return False
 
         normalized_id = context_id.strip()
 

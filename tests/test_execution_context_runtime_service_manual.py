@@ -391,6 +391,64 @@ def main() -> None:
     print("CLEAR: PASS")
 
     # -------------------------------------------------
+    # NON-STRING CONTEXT ID (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+    #
+    # A non-string context_id must be rejected via each
+    # method's existing contract (raise for create(),
+    # False/None for the lookup methods), never raise an
+    # unrelated exception.
+    # -------------------------------------------------
+
+    for bad_id in (None, 123, ["not", "a", "string"]):
+        try:
+            service.create(bad_id)
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "create raised unexpected exception for "
+                f"{bad_id!r}: {type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"create should reject non-string id {bad_id!r}."
+            )
+
+        try:
+            get_result = service.get(bad_id)
+            contains_result = service.contains(bad_id)
+            stop_result = service.stop(bad_id)
+            unregister_result = service.unregister(bad_id)
+        except Exception as exc:
+            raise RuntimeError(
+                "Lookup method raised unexpected exception for "
+                f"{bad_id!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if get_result is not None:
+            raise RuntimeError(
+                f"get should return None for {bad_id!r}."
+            )
+
+        if contains_result is not False:
+            raise RuntimeError(
+                f"contains should return False for {bad_id!r}."
+            )
+
+        if stop_result is not False:
+            raise RuntimeError(
+                f"stop should return False for {bad_id!r}."
+            )
+
+        if unregister_result is not False:
+            raise RuntimeError(
+                f"unregister should return False for {bad_id!r}."
+            )
+
+    print("NON-STRING CONTEXT ID SAFETY: PASS")
+
+    # -------------------------------------------------
     # FINAL
     # -------------------------------------------------
 
