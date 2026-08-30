@@ -154,6 +154,75 @@ def main() -> None:
             "Empty stage name should be rejected."
         )
 
+    # -------------------------------------------------
+    # NON-STRING KEY (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+    #
+    # A non-string stage_name/metadata key must be
+    # rejected via each method's existing contract (raise
+    # for the mutators, a safe default for the readers),
+    # never raise an unrelated exception.
+    # -------------------------------------------------
+
+    for bad_key in (None, 123, ["not", "a", "string"]):
+        try:
+            context.add_stage_result(bad_key, "x")
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "add_stage_result raised unexpected exception "
+                f"for {bad_key!r}: {type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"add_stage_result should reject {bad_key!r}."
+            )
+
+        try:
+            context.set_metadata(bad_key, "x")
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "set_metadata raised unexpected exception for "
+                f"{bad_key!r}: {type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"set_metadata should reject {bad_key!r}."
+            )
+
+        try:
+            stage_result = context.get_stage_result(bad_key)
+            metadata_result = context.get_metadata(
+                bad_key,
+                "fallback",
+            )
+            has_result = context.has_metadata(bad_key)
+        except Exception as exc:
+            raise RuntimeError(
+                "Reader raised unexpected exception for "
+                f"{bad_key!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if stage_result is not None:
+            raise RuntimeError(
+                f"get_stage_result should return None for {bad_key!r}."
+            )
+
+        if metadata_result != "fallback":
+            raise RuntimeError(
+                f"get_metadata should return the default for {bad_key!r}."
+            )
+
+        if has_result is not False:
+            raise RuntimeError(
+                f"has_metadata should return False for {bad_key!r}."
+            )
+
+    print("NON-STRING KEY SAFETY: PASS")
+
     print()
     print("=" * 60)
     print("PIPELINE CONTEXT: PASS")

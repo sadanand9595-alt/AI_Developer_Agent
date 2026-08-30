@@ -64,6 +64,14 @@ class PipelineContext:
     ) -> None:
         """Store the result produced by a pipeline stage."""
 
+        if not isinstance(
+            stage_name,
+            str,
+        ):
+            raise ValueError(
+                "Stage name must be a string."
+            )
+
         normalized_name = stage_name.strip()
 
         if not normalized_name:
@@ -81,6 +89,12 @@ class PipelineContext:
     ) -> object | None:
         """Retrieve a stored stage result."""
 
+        if not isinstance(
+            stage_name,
+            str,
+        ):
+            return None
+
         return self.stage_results.get(
             stage_name.strip()
         )
@@ -91,6 +105,14 @@ class PipelineContext:
         value: object,
     ) -> None:
         """Set pipeline metadata."""
+
+        if not isinstance(
+            key,
+            str,
+        ):
+            raise ValueError(
+                "Metadata key must be a string."
+            )
 
         normalized_key = key.strip()
 
@@ -110,6 +132,12 @@ class PipelineContext:
     ) -> object | None:
         """Retrieve pipeline metadata."""
 
+        if not isinstance(
+            key,
+            str,
+        ):
+            return default
+
         return self.metadata.get(
             key.strip(),
             default,
@@ -120,6 +148,12 @@ class PipelineContext:
         key: str,
     ) -> bool:
         """Return whether metadata exists."""
+
+        if not isinstance(
+            key,
+            str,
+        ):
+            return False
 
         return key.strip() in self.metadata
 
