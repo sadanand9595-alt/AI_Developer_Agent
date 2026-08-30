@@ -74,6 +74,38 @@ class ExecutionContext:
         Create a validated execution context.
         """
 
+        if (
+            not isinstance(user_id, str)
+            or not user_id.strip()
+        ):
+            raise ValueError(
+                "User ID must be a non-empty string."
+            )
+
+        if (
+            not isinstance(task_id, str)
+            or not task_id.strip()
+        ):
+            raise ValueError(
+                "Task ID must be a non-empty string."
+            )
+
+        if permissions is not None and not isinstance(
+            permissions,
+            (set, frozenset),
+        ):
+            raise ValueError(
+                "Permissions must be a set or frozenset."
+            )
+
+        if metadata is not None and not isinstance(
+            metadata,
+            dict,
+        ):
+            raise ValueError(
+                "Metadata must be a dictionary."
+            )
+
         return cls(
             user_id=UserId(user_id),
             task_id=TaskId(task_id),
