@@ -46,6 +46,14 @@ class AgentRuntime:
         *,
         agent_id: str,
     ) -> None:
+        if not isinstance(
+            agent_id,
+            str,
+        ):
+            raise ValueError(
+                "Agent ID must be a string."
+            )
+
         if not agent_id.strip():
             raise ValueError(
                 "Agent ID cannot be empty."
@@ -137,6 +145,14 @@ class AgentRuntime:
         Planning/execution state transitions are managed by the
         runtime rather than by the supplied operation.
         """
+
+        if not isinstance(
+            context,
+            ExecutionContext,
+        ):
+            raise TypeError(
+                "Expected an ExecutionContext instance."
+            )
 
         execution_context = context.with_agent(
             self._agent_id
