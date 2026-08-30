@@ -244,9 +244,23 @@ class ExecutionCoordinator:
         # DUPLICATE EXECUTION PROTECTION
         # -----------------------------------------------------
 
+        # -----------------------------------------------------
+        # Duplicate detection covers both:
+        #
+        # - Executions currently registered (active).
+        # - Executions with prior history in the execution
+        #   manager that were never cleared (e.g. completed,
+        #   failed, or cancelled executions reusing the same
+        #   execution_id). ``is_registered`` alone cannot see
+        #   these because the registry is unregistered on
+        #   completion while the manager record persists.
+        # -----------------------------------------------------
+
         if self.is_registered(
             execution_id
-        ):
+        ) or self.get(
+            execution_id
+        ) is not None:
             return Result.fail(
                 "EXECUTION_ALREADY_REGISTERED",
                 (

@@ -1,4 +1,6 @@
 from core.execution_coordinator import ExecutionCoordinator
+from core.pipeline_context import PipelineContext
+from core.planner import ExecutionPlan
 
 
 def main() -> None:
@@ -363,6 +365,91 @@ def main() -> None:
     coordinator.close()
 
     print("CLOSE: PASS")
+
+    # -------------------------------------------------
+    # ZERO-STEP PLAN COMPLETION
+    # -------------------------------------------------
+
+    coordinator2 = ExecutionCoordinator()
+
+    zero_step_plan = ExecutionPlan(
+        plan_id="zero-step-plan",
+        request="zero-step-request",
+        steps=(),
+        metadata={},
+    )
+
+    zero_step_context = PipelineContext(
+        execution_id="coordinator-execution-zero",
+        task_id="coordinator-task-zero",
+    )
+
+    zero_result = coordinator2.execute_plan(
+        plan=zero_step_plan,
+        context=zero_step_context,
+    )
+
+    if zero_result.is_failure():
+        raise RuntimeError(
+            "Zero-step plan execution should succeed."
+        )
+
+    zero_record = coordinator2.get(
+        "coordinator-execution-zero"
+    )
+
+    if zero_record is None or zero_record.status != "completed":
+        raise RuntimeError(
+            "Zero-step execution should be completed."
+        )
+
+    if coordinator2.is_registered(
+        "coordinator-execution-zero"
+    ):
+        raise RuntimeError(
+            "Zero-step execution should be unregistered "
+            "after completion."
+        )
+
+    print("ZERO-STEP PLAN: PASS")
+
+    # -------------------------------------------------
+    # DUPLICATE EXECUTION AFTER COMPLETION (REUSED ID)
+    # -------------------------------------------------
+    #
+    # The execution manager retains completed/failed/cancelled
+    # records even after the coordinator's registry has been
+    # unregistered. Re-running the same execution_id must be
+    # rejected with a clear EXECUTION_ALREADY_REGISTERED error
+    # rather than an opaque failure surfacing from deep inside
+    # the execution manager.
+    # -------------------------------------------------
+
+    reused_context = PipelineContext(
+        execution_id="coordinator-execution-zero",
+        task_id="coordinator-task-zero",
+    )
+
+    duplicate_result = coordinator2.execute_plan(
+        plan=zero_step_plan,
+        context=reused_context,
+    )
+
+    if duplicate_result.is_success():
+        raise RuntimeError(
+            "Reusing a completed execution_id should fail."
+        )
+
+    if duplicate_result.error.code != "EXECUTION_ALREADY_REGISTERED":
+        raise RuntimeError(
+            "Reused execution_id should be rejected as "
+            "already registered, got: "
+            f"{duplicate_result.error.code}"
+        )
+
+    print("DUPLICATE AFTER COMPLETION: PASS")
+
+    coordinator2.close()
 
     print()
     print("=" * 60)
