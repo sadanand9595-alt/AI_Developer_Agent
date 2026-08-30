@@ -135,6 +135,83 @@ def main() -> None:
 
     print("CLEAR: PASS")
 
+    # -------------------------------------------------
+    # INVALID REQUEST TYPE
+    # -------------------------------------------------
+
+    for invalid_request in (None, 123, ["not", "a", "string"]):
+        try:
+            PlanBuilder(invalid_request)
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(
+                "Non-string request should be rejected."
+            )
+
+    print("INVALID REQUEST TYPE: PASS")
+
+    # -------------------------------------------------
+    # INVALID STEP FIELD TYPES
+    # -------------------------------------------------
+
+    type_check_builder = PlanBuilder(
+        "Invalid step field type test."
+    )
+
+    invalid_step_calls = [
+        {
+            "name": None,
+            "description": "d",
+            "action": "a",
+        },
+        {
+            "name": "n",
+            "description": None,
+            "action": "a",
+        },
+        {
+            "name": "n",
+            "description": "d",
+            "action": None,
+        },
+        {
+            "name": "n",
+            "description": "d",
+            "action": "a",
+            "requires_approval": "yes",
+        },
+        {
+            "name": "n",
+            "description": "d",
+            "action": "a",
+            "metadata": 123,
+        },
+        {
+            "name": "n",
+            "description": "d",
+            "action": "a",
+            "metadata": "bad",
+        },
+    ]
+
+    for kwargs in invalid_step_calls:
+        try:
+            type_check_builder.add_step(**kwargs)
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid step field should be rejected: {kwargs}"
+            )
+
+    if type_check_builder.step_count() != 0:
+        raise RuntimeError(
+            "Rejected steps must not be added."
+        )
+
+    print("INVALID STEP FIELD TYPES: PASS")
+
     print()
     print("=" * 60)
     print("PLAN BUILDER: PASS")

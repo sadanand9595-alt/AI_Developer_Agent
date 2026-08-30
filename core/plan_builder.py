@@ -19,6 +19,14 @@ class PlanBuilder:
         self,
         request: str,
     ) -> None:
+        if not isinstance(
+            request,
+            str,
+        ):
+            raise ValueError(
+                "Plan request must be a string."
+            )
+
         normalized_request = request.strip()
 
         if not normalized_request:
@@ -40,6 +48,30 @@ class PlanBuilder:
     ) -> "PlanBuilder":
         """Add the next ordered execution step."""
 
+        if not isinstance(
+            name,
+            str,
+        ):
+            raise ValueError(
+                "Step name must be a string."
+            )
+
+        if not isinstance(
+            description,
+            str,
+        ):
+            raise ValueError(
+                "Step description must be a string."
+            )
+
+        if not isinstance(
+            action,
+            str,
+        ):
+            raise ValueError(
+                "Step action must be a string."
+            )
+
         normalized_name = name.strip()
         normalized_description = description.strip()
         normalized_action = action.strip()
@@ -57,6 +89,25 @@ class PlanBuilder:
         if not normalized_action:
             raise ValueError(
                 "Step action cannot be empty."
+            )
+
+        if not isinstance(
+            requires_approval,
+            bool,
+        ):
+            raise ValueError(
+                "requires_approval must be a boolean."
+            )
+
+        if (
+            metadata is not None
+            and not isinstance(
+                metadata,
+                dict,
+            )
+        ):
+            raise ValueError(
+                "Step metadata must be a dictionary."
             )
 
         step = PlanStep(
