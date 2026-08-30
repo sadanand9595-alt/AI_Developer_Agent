@@ -194,6 +194,66 @@ def main() -> None:
     print("POST-UNSUBSCRIBE PUBLISH: PASS")
 
     # -------------------------------------------------
+    # LISTENER EXCEPTION ISOLATION
+    # -------------------------------------------------
+
+    isolation_bus = ExecutionEventBus()
+    isolation_received: list[str] = []
+
+    def failing_listener(event: ExecutionEvent) -> None:
+        raise RuntimeError("boom")
+
+    def surviving_listener(event: ExecutionEvent) -> None:
+        isolation_received.append(event.event_type)
+
+    isolation_bus.subscribe(failing_listener)
+    isolation_bus.subscribe(surviving_listener)
+
+    import logging
+
+    class _CapturingHandler(logging.Handler):
+        def __init__(self) -> None:
+            super().__init__()
+            self.records: list[logging.LogRecord] = []
+
+        def emit(self, record: logging.LogRecord) -> None:
+            self.records.append(record)
+
+    capture_handler = _CapturingHandler()
+    bus_logger = logging.getLogger("core.execution_event_bus")
+    bus_logger.addHandler(capture_handler)
+    previous_level = bus_logger.level
+    bus_logger.setLevel(logging.ERROR)
+
+    try:
+        isolation_notified = isolation_bus.publish(
+            ExecutionEvent.create(
+                event_type=ExecutionEventType.STARTED,
+                execution_id="execution-003",
+            )
+        )
+    finally:
+        bus_logger.removeHandler(capture_handler)
+        bus_logger.setLevel(previous_level)
+
+    if isolation_notified != 2:
+        raise RuntimeError(
+            "Both listeners should be attempted despite one raising."
+        )
+
+    if isolation_received != [ExecutionEventType.STARTED]:
+        raise RuntimeError(
+            "Surviving listener should still receive the event."
+        )
+
+    if not capture_handler.records:
+        raise RuntimeError(
+            "Listener failure should be logged."
+        )
+
+    print("LISTENER EXCEPTION ISOLATION: PASS")
+
+    # -------------------------------------------------
     # INVALID EVENT
     # -------------------------------------------------
 

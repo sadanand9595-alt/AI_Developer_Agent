@@ -7,10 +7,14 @@ events.
 
 from __future__ import annotations
 
+import logging
 from threading import RLock
 from typing import Callable
 
 from core.execution_event import ExecutionEvent
+
+
+logger = logging.getLogger(__name__)
 
 
 EventListener = Callable[[ExecutionEvent], None]
@@ -144,6 +148,11 @@ class ExecutionEventBus:
             try:
                 listener(event)
             except Exception:
+                logger.exception(
+                    "Execution event listener failed: listener=%r event_type=%r",
+                    listener,
+                    event.event_type,
+                )
                 continue
 
         return notified
