@@ -261,6 +261,61 @@ def main() -> None:
 
     print("CLEAR: PASS")
 
+    # -------------------------------------------------
+    # NON-STRING EXECUTION ID (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+    #
+    # A non-string execution_id must be rejected via each
+    # method's existing contract (raise for register(),
+    # False/None for the lookup methods), never raise an
+    # unrelated AttributeError.
+    # -------------------------------------------------
+
+    for bad_id in (None, 123, ["not", "a", "string"]):
+        try:
+            registry.register(
+                bad_id,
+                FakeExecution("x"),
+            )
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "register raised unexpected exception for "
+                f"{bad_id!r}: {type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"register should reject non-string id {bad_id!r}."
+            )
+
+        try:
+            unregister_result = registry.unregister(bad_id)
+            get_result = registry.get(bad_id)
+            contains_result = registry.contains(bad_id)
+        except Exception as exc:
+            raise RuntimeError(
+                "Lookup method raised unexpected exception for "
+                f"{bad_id!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if unregister_result is not False:
+            raise RuntimeError(
+                f"unregister should return False for {bad_id!r}."
+            )
+
+        if get_result is not None:
+            raise RuntimeError(
+                f"get should return None for {bad_id!r}."
+            )
+
+        if contains_result is not False:
+            raise RuntimeError(
+                f"contains should return False for {bad_id!r}."
+            )
+
+    print("NON-STRING EXECUTION ID SAFETY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION REGISTRY: PASS")

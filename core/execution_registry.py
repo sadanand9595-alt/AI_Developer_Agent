@@ -25,6 +25,14 @@ class ExecutionRegistry:
     ) -> None:
         """Register an execution instance."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            raise ValueError(
+                "Execution ID must be a string."
+            )
+
         normalized_id = execution_id.strip()
 
         if not normalized_id:
@@ -56,6 +64,12 @@ class ExecutionRegistry:
     ) -> bool:
         """Remove an execution from the registry."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return False
+
         normalized_id = execution_id.strip()
 
         if not normalized_id:
@@ -76,6 +90,12 @@ class ExecutionRegistry:
     ) -> Any | None:
         """Return a registered execution."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return None
+
         normalized_id = execution_id.strip()
 
         if not normalized_id:
@@ -91,6 +111,12 @@ class ExecutionRegistry:
         execution_id: str,
     ) -> bool:
         """Return whether an execution is registered."""
+
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return False
 
         normalized_id = execution_id.strip()
 
