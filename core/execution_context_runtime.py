@@ -174,6 +174,8 @@ class ExecutionContextRuntime:
             return False
 
         with self._lock:
+            self._ensure_active()
+
             if normalized_name not in self.variables:
                 return False
 

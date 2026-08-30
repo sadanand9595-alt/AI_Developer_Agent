@@ -415,6 +415,27 @@ def main() -> None:
             "Resume after stop should fail."
         )
 
+    try:
+        runtime.remove_variable(
+            "result"
+        )
+    except RuntimeError:
+        print("STOPPED REMOVE VARIABLE PROTECTION: PASS")
+    else:
+        raise RuntimeError(
+            "Removing a variable after stop should fail."
+        )
+
+    if runtime.get_variable(
+        "result"
+    ) != {
+        "status": "ok"
+    }:
+        raise RuntimeError(
+            "Variable must be unchanged after a rejected "
+            "post-stop removal."
+        )
+
     # -------------------------------------------------
     # EMPTY CONTEXT ID
     # -------------------------------------------------
