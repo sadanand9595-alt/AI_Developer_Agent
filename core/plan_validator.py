@@ -29,16 +29,22 @@ class PlanValidator:
                 "Expected an ExecutionPlan instance.",
             )
 
-        if not plan.plan_id.strip():
+        if (
+            not isinstance(plan.plan_id, str)
+            or not plan.plan_id.strip()
+        ):
             return Result.fail(
                 "INVALID_PLAN_ID",
-                "Plan ID cannot be empty.",
+                "Plan ID must be a non-empty string.",
             )
 
-        if not plan.request.strip():
+        if (
+            not isinstance(plan.request, str)
+            or not plan.request.strip()
+        ):
             return Result.fail(
                 "INVALID_PLAN_REQUEST",
-                "Plan request cannot be empty.",
+                "Plan request must be a non-empty string.",
             )
 
         if not plan.steps:
@@ -51,10 +57,13 @@ class PlanValidator:
         seen_orders: set[int] = set()
 
         for step in plan.steps:
-            if not step.step_id.strip():
+            if (
+                not isinstance(step.step_id, str)
+                or not step.step_id.strip()
+            ):
                 return Result.fail(
                     "INVALID_STEP_ID",
-                    "Plan step ID cannot be empty.",
+                    "Plan step ID must be a non-empty string.",
                 )
 
             if step.step_id in seen_step_ids:
@@ -68,31 +77,44 @@ class PlanValidator:
 
             seen_step_ids.add(step.step_id)
 
-            if not step.name.strip():
+            if (
+                not isinstance(step.name, str)
+                or not step.name.strip()
+            ):
                 return Result.fail(
                     "INVALID_STEP_NAME",
-                    "Plan step name cannot be empty.",
+                    "Plan step name must be a non-empty string.",
                 )
 
-            if not step.description.strip():
+            if (
+                not isinstance(step.description, str)
+                or not step.description.strip()
+            ):
                 return Result.fail(
                     "INVALID_STEP_DESCRIPTION",
-                    "Plan step description cannot be empty.",
+                    "Plan step description must be a non-empty string.",
                     details={
                         "step_id": step.step_id,
                     },
                 )
 
-            if not step.action.strip():
+            if (
+                not isinstance(step.action, str)
+                or not step.action.strip()
+            ):
                 return Result.fail(
                     "INVALID_STEP_ACTION",
-                    "Plan step action cannot be empty.",
+                    "Plan step action must be a non-empty string.",
                     details={
                         "step_id": step.step_id,
                     },
                 )
 
-            if step.order <= 0:
+            if (
+                not isinstance(step.order, int)
+                or isinstance(step.order, bool)
+                or step.order <= 0
+            ):
                 return Result.fail(
                     "INVALID_STEP_ORDER",
                     "Plan step order must be greater than zero.",

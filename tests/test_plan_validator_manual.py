@@ -201,6 +201,92 @@ def main() -> None:
         non_sequential_result.error.code,
     )
 
+    # -------------------------------------------------
+    # NON-STRING FIELDS (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+    #
+    # A malformed plan built outside the normal builder/
+    # pipeline path (e.g. via dataclasses.replace) must
+    # return a Result failure, never raise.
+    # -------------------------------------------------
+
+    non_string_cases = [
+        ("plan_id", replace(plan, plan_id=None), "INVALID_PLAN_ID"),
+        ("request", replace(plan, request=None), "INVALID_PLAN_REQUEST"),
+        (
+            "step_id",
+            replace(
+                plan,
+                steps=(replace(plan.steps[0], step_id=None),),
+            ),
+            "INVALID_STEP_ID",
+        ),
+        (
+            "name",
+            replace(
+                plan,
+                steps=(replace(plan.steps[0], name=None),),
+            ),
+            "INVALID_STEP_NAME",
+        ),
+        (
+            "description",
+            replace(
+                plan,
+                steps=(replace(plan.steps[0], description=None),),
+            ),
+            "INVALID_STEP_DESCRIPTION",
+        ),
+        (
+            "action",
+            replace(
+                plan,
+                steps=(replace(plan.steps[0], action=None),),
+            ),
+            "INVALID_STEP_ACTION",
+        ),
+        (
+            "order (non-int)",
+            replace(
+                plan,
+                steps=(replace(plan.steps[0], order="first"),),
+            ),
+            "INVALID_STEP_ORDER",
+        ),
+        (
+            "order (bool)",
+            replace(
+                plan,
+                steps=(replace(plan.steps[0], order=True),),
+            ),
+            "INVALID_STEP_ORDER",
+        ),
+    ]
+
+    for label, malformed_plan, expected_code in non_string_cases:
+        try:
+            malformed_result = validator.validate(
+                malformed_plan
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"Validator raised for {label}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+
+        if malformed_result.is_success():
+            raise RuntimeError(
+                f"Malformed {label} should be rejected."
+            )
+
+        if malformed_result.error.code != expected_code:
+            raise RuntimeError(
+                f"Unexpected error code for {label}: "
+                f"{malformed_result.error.code}"
+            )
+
+    print("NON-STRING FIELD SAFETY: PASS")
+
     print()
     print("=" * 60)
     print("PLAN VALIDATOR: PASS")
