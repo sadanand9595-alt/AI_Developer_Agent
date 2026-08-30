@@ -21,7 +21,18 @@ class CommandCenterError(Exception):
         details: dict[str, object] | None = None,
     ) -> None:
         super().__init__(message)
-        self.message = message
+
+        # ``message`` is coerced to a string so that ``__str__`` can
+        # never itself raise (a non-string message would otherwise
+        # cause str(exc)/f"{exc}" to raise TypeError, which is
+        # catastrophic when it happens inside error-handling code
+        # such as logging an already-raised exception).
+        self.message = (
+            message
+            if isinstance(message, str)
+            else str(message)
+        )
+
         self.details = details or {}
 
     def __str__(self) -> str:
@@ -148,8 +159,15 @@ class RetrievalError(RAGError):
     error_code = "RETRIEVAL_ERROR"
 
 
-class MemoryError(CommandCenterError):
-    """Base exception for memory-related failures."""
+class MemorySystemError(CommandCenterError):
+    """
+    Base exception for memory-related failures.
+
+    Named ``MemorySystemError`` (not ``MemoryError``) to avoid
+    shadowing the built-in ``MemoryError``, which signals an actual
+    out-of-memory condition. Code that writes ``except MemoryError``
+    expecting the built-in must keep working correctly.
+    """
 
     error_code = "MEMORY_ERROR"
 
