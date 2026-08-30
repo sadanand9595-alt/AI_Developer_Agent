@@ -2,6 +2,7 @@ from core.action_executor import ActionExecutor
 from core.action_registry import ActionRegistry
 from core.pipeline_context import PipelineContext
 from core.plan_builder import PlanBuilder
+from core.planner import PlanStep
 from core.result import Result
 
 
@@ -220,6 +221,52 @@ def main() -> None:
     )
 
     print("CONTEXT VALIDATION: PASS")
+
+    # -------------------------------------------------
+    # NON-STRING ACTION (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+    #
+    # PlanStep is a plain dataclass with no field
+    # validation, so ActionExecutor may be called
+    # directly with a step whose action was never
+    # normalized by PlanBuilder/PlanValidator. This
+    # must return a Result failure, never raise.
+    # -------------------------------------------------
+
+    for bad_action in (None, 123, ["not", "a", "string"]):
+        malformed_step = PlanStep(
+            step_id="malformed-step",
+            name="malformed",
+            description="Non-string action test.",
+            action=bad_action,
+            order=1,
+        )
+
+        try:
+            malformed_result = executor.execute_step(
+                malformed_step,
+                context,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "Executor raised for non-string action "
+                f"{bad_action!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if malformed_result.is_success():
+            raise RuntimeError(
+                f"Non-string action {bad_action!r} should "
+                "be rejected."
+            )
+
+        if malformed_result.error.code != "INVALID_ACTION":
+            raise RuntimeError(
+                "Unexpected error code for non-string "
+                f"action {bad_action!r}: "
+                f"{malformed_result.error.code}"
+            )
+
+    print("NON-STRING ACTION SAFETY: PASS")
 
     print()
     print("=" * 60)

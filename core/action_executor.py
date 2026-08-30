@@ -69,6 +69,19 @@ class ActionExecutor:
         # ACTION VALIDATION
         # -----------------------------------------------------
 
+        if not isinstance(
+            step.action,
+            str,
+        ):
+            return Result.fail(
+                "INVALID_ACTION",
+                "Plan step action must be a string.",
+                details={
+                    "step_id": step.step_id,
+                    "step_name": step.name,
+                },
+            )
+
         action_name = step.action.strip()
 
         if not action_name:
