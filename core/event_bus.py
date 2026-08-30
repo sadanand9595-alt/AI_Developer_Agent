@@ -1,8 +1,18 @@
 """
 In-process event bus for AI Command Center.
 
-The event bus provides lightweight publish/subscribe communication
-between independent application components.
+Provides lightweight publish/subscribe communication between
+independent application components.
+
+Features:
+- Synchronous and asynchronous handlers
+- Duplicate subscription protection
+- Thread-safe subscription management
+- Snapshot-based publishing
+- Sequential publishing
+- Parallel publishing
+- Exception isolation
+- Safe unsubscribe and clear operations
 """
 
 from __future__ import annotations
@@ -12,89 +22,207 @@ import inspect
 import logging
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
+from threading import RLock
 from typing import Any
 
 from core.events import Event, EventType
 
 
-EventHandler = Callable[[Event], Any]
-AsyncEventHandler = Callable[[Event], Awaitable[Any]]
-
 logger = logging.getLogger(__name__)
+
+
+Handler = Callable[[Event], Any | Awaitable[Any]]
 
 
 class EventBus:
     """
-    Publish/subscribe event dispatcher.
+    Thread-safe in-process event bus.
 
-    Handlers can be synchronous or asynchronous.
+    Handlers may be synchronous or asynchronous.
+
+    The bus protects subscription state with an RLock and always
+    publishes from a snapshot of the current handlers so that
+    subscribe/unsubscribe operations during publishing do not
+    mutate the active iteration.
     """
 
     def __init__(self) -> None:
-        self._handlers: dict[
-            EventType,
-            list[EventHandler | AsyncEventHandler],
-        ] = defaultdict(list)
+        self._handlers: dict[EventType, list[Handler]] = defaultdict(list)
+        self._lock = RLock()
+
+    # ------------------------------------------------------------------
+    # SUBSCRIBE
+    # ------------------------------------------------------------------
 
     def subscribe(
         self,
         event_type: EventType,
-        handler: EventHandler | AsyncEventHandler,
+        handler: Handler,
     ) -> None:
         """
-        Register a handler for an event type.
+        Subscribe a handler to an event type.
 
-        Duplicate registrations of the same handler are ignored.
+        Duplicate subscriptions are ignored.
         """
 
-        handlers = self._handlers[event_type]
+        if not callable(handler):
+            raise TypeError("handler must be callable.")
 
-        if handler not in handlers:
-            handlers.append(handler)
+        with self._lock:
+            handlers = self._handlers[event_type]
+
+            if handler not in handlers:
+                handlers.append(handler)
+
+    # ------------------------------------------------------------------
+    # UNSUBSCRIBE
+    # ------------------------------------------------------------------
 
     def unsubscribe(
         self,
         event_type: EventType,
-        handler: EventHandler | AsyncEventHandler,
+        handler: Handler,
+    ) -> bool:
+        """
+        Remove a handler from an event type.
+
+        Returns True if the handler was removed, otherwise False.
+        """
+
+        with self._lock:
+            handlers = self._handlers.get(event_type)
+
+            if not handlers:
+                return False
+
+            try:
+                handlers.remove(handler)
+            except ValueError:
+                return False
+
+            if not handlers:
+                self._handlers.pop(event_type, None)
+
+            return True
+
+    # ------------------------------------------------------------------
+    # CLEAR
+    # ------------------------------------------------------------------
+
+    def clear(
+        self,
+        event_type: EventType | None = None,
     ) -> None:
-        """Remove a previously registered event handler."""
+        """
+        Clear subscriptions.
 
-        handlers = self._handlers.get(event_type)
+        If event_type is supplied, only handlers for that event type
+        are removed.
 
-        if not handlers:
-            return
+        If event_type is None, all subscriptions are removed.
+        """
 
-        if handler in handlers:
-            handlers.remove(handler)
+        with self._lock:
+            if event_type is None:
+                self._handlers.clear()
+                return
 
-        if not handlers:
             self._handlers.pop(event_type, None)
 
-    def clear(self) -> None:
-        """Remove all registered handlers."""
+    # ------------------------------------------------------------------
+    # INSPECTION
+    # ------------------------------------------------------------------
 
-        self._handlers.clear()
+    def has_subscribers(
+        self,
+        event_type: EventType,
+    ) -> bool:
+        """Return True when an event type has at least one subscriber."""
 
-    def handler_count(self, event_type: EventType) -> int:
-        """Return the number of handlers registered for an event."""
+        with self._lock:
+            return bool(self._handlers.get(event_type))
 
-        return len(self._handlers.get(event_type, []))
+    def subscriber_count(
+        self,
+        event_type: EventType,
+    ) -> int:
+        """Return the number of subscribers for an event type."""
 
-    async def publish(self, event: Event) -> None:
+        with self._lock:
+            return len(self._handlers.get(event_type, ()))
+
+    def registered_events(self) -> tuple[EventType, ...]:
+        """Return all event types that currently have subscribers."""
+
+        with self._lock:
+            return tuple(
+                event_type
+                for event_type, handlers in self._handlers.items()
+                if handlers
+            )
+
+    # ------------------------------------------------------------------
+    # INTERNAL HELPERS
+    # ------------------------------------------------------------------
+
+    def _snapshot_handlers(
+        self,
+        event_type: EventType,
+    ) -> tuple[Handler, ...]:
         """
-        Publish an event to all registered handlers.
+        Return an immutable snapshot of handlers for an event type.
 
-        Handlers are executed independently. A handler failure is
-        logged and does not prevent other handlers from receiving
-        the event.
+        This prevents concurrent subscription changes from modifying
+        the handler collection while an event is being published.
         """
 
-        handlers = list(
-            self._handlers.get(event.event_type, [])
+        with self._lock:
+            return tuple(self._handlers.get(event_type, ()))
+
+    @staticmethod
+    def _log_handler_error(
+        handler: Handler,
+        event: Event,
+    ) -> None:
+        """Log a handler failure without propagating it."""
+
+        logger.exception(
+            "Event handler failed: handler=%r event_type=%r",
+            handler,
+            getattr(event, "event_type", None),
         )
 
-        if not handlers:
-            return
+    # ------------------------------------------------------------------
+    # PUBLISH
+    # ------------------------------------------------------------------
+
+    async def publish(
+        self,
+        event: Event,
+    ) -> None:
+        """
+        Publish an event sequentially.
+
+        Synchronous handlers execute immediately.
+
+        Asynchronous handlers are awaited one at a time.
+
+        Handler failures are isolated and logged. A failing handler
+        does not prevent subsequent handlers from receiving the event.
+
+        The event is intentionally not required to be an actual
+        Event instance. The event bus operates on the event_type
+        protocol used by the application's event objects and tests.
+        """
+
+        event_type = getattr(event, "event_type", None)
+
+        if event_type is None:
+            raise TypeError(
+                "event must provide an event_type attribute."
+            )
+
+        handlers = self._snapshot_handlers(event_type)
 
         for handler in handlers:
             try:
@@ -102,57 +230,115 @@ class EventBus:
 
                 if inspect.isawaitable(result):
                     await result
-            except Exception as exc:
-                logger.error(
-                    "Event handler failed for %s: %s",
-                    event.event_type,
-                    exc,
-                    exc_info=True,
-                )
 
-    async def publish_parallel(self, event: Event) -> None:
+            except Exception:
+                self._log_handler_error(handler, event)
+
+    # ------------------------------------------------------------------
+    # PUBLISH PARALLEL
+    # ------------------------------------------------------------------
+
+    async def publish_parallel(
+        self,
+        event: Event,
+    ) -> None:
         """
         Publish an event to all handlers concurrently.
 
-        This is useful for independent observers such as logging,
-        metrics, and monitoring.
+        Synchronous handlers are executed in worker threads.
+
+        Asynchronous handlers are awaited concurrently.
+
+        Handler failures are isolated and logged.
+
+        All handlers are started from the same immutable snapshot.
         """
 
-        handlers = list(
-            self._handlers.get(event.event_type, [])
-        )
+        event_type = getattr(event, "event_type", None)
+
+        if event_type is None:
+            raise TypeError(
+                "event must provide an event_type attribute."
+            )
+
+        handlers = self._snapshot_handlers(event_type)
 
         if not handlers:
             return
 
-        awaitables: list[Awaitable[Any]] = []
-
-        for handler in handlers:
+        async def run_handler(handler: Handler) -> None:
             try:
-                result = handler(event)
+                if inspect.iscoroutinefunction(handler):
+                    await handler(event)
+                    return
 
-                if inspect.isawaitable(result):
-                    awaitables.append(result)
-                else:
-                    # Synchronous handlers are already completed.
-                    continue
-            except Exception as exc:
-                logger.error(
-                    "Event handler failed for %s: %s",
-                    event.event_type,
-                    exc,
-                    exc_info=True,
+                result = await asyncio.to_thread(
+                    handler,
+                    event,
                 )
 
-        if awaitables:
-            await asyncio.gather(*awaitables, return_exceptions=True)
+                if inspect.isawaitable(result):
+                    await result
 
-    def get_handlers(
-        self,
-        event_type: EventType,
-    ) -> tuple[EventHandler | AsyncEventHandler, ...]:
-        """Return registered handlers without exposing internal state."""
+            except Exception:
+                self._log_handler_error(handler, event)
 
-        return tuple(
-            self._handlers.get(event_type, [])
+        await asyncio.gather(
+            *(run_handler(handler) for handler in handlers)
         )
+
+
+# ----------------------------------------------------------------------
+# GLOBAL EVENT BUS
+# ----------------------------------------------------------------------
+
+event_bus = EventBus()
+
+
+# ----------------------------------------------------------------------
+# CONVENIENCE HELPERS
+# ----------------------------------------------------------------------
+
+def subscribe(
+    event_type: EventType,
+    handler: Handler,
+) -> None:
+    """Subscribe a handler to the global event bus."""
+
+    event_bus.subscribe(event_type, handler)
+
+
+def unsubscribe(
+    event_type: EventType,
+    handler: Handler,
+) -> bool:
+    """Unsubscribe a handler from the global event bus."""
+
+    return event_bus.unsubscribe(event_type, handler)
+
+
+async def publish(
+    event: Event,
+) -> None:
+    """Publish an event through the global event bus."""
+
+    await event_bus.publish(event)
+
+
+async def publish_parallel(
+    event: Event,
+) -> None:
+    """Publish an event through the global event bus in parallel."""
+
+    await event_bus.publish_parallel(event)
+
+
+__all__ = [
+    "EventBus",
+    "Handler",
+    "event_bus",
+    "subscribe",
+    "unsubscribe",
+    "publish",
+    "publish_parallel",
+]
