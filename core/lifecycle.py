@@ -79,6 +79,15 @@ class TaskLifecycle:
     ) -> bool:
         """Return whether a task transition is allowed."""
 
+        if not isinstance(
+            current,
+            TaskStatus,
+        ) or not isinstance(
+            target,
+            TaskStatus,
+        ):
+            return False
+
         return target in cls._TRANSITIONS.get(current, frozenset())
 
     @classmethod
@@ -95,14 +104,21 @@ class TaskLifecycle:
         """
 
         if not cls.can_transition(current, target):
+            current_repr = getattr(
+                current, "value", current
+            )
+            target_repr = getattr(
+                target, "value", target
+            )
+
             raise ValidationError(
                 (
                     f"Invalid task transition: "
-                    f"{current.value} -> {target.value}"
+                    f"{current_repr} -> {target_repr}"
                 ),
                 details={
-                    "current": current.value,
-                    "target": target.value,
+                    "current": current_repr,
+                    "target": target_repr,
                 },
             )
 
@@ -162,6 +178,15 @@ class AgentLifecycle:
     ) -> bool:
         """Return whether an agent transition is allowed."""
 
+        if not isinstance(
+            current,
+            AgentStatus,
+        ) or not isinstance(
+            target,
+            AgentStatus,
+        ):
+            return False
+
         return target in cls._TRANSITIONS.get(current, frozenset())
 
     @classmethod
@@ -178,14 +203,21 @@ class AgentLifecycle:
         """
 
         if not cls.can_transition(current, target):
+            current_repr = getattr(
+                current, "value", current
+            )
+            target_repr = getattr(
+                target, "value", target
+            )
+
             raise ValidationError(
                 (
                     f"Invalid agent transition: "
-                    f"{current.value} -> {target.value}"
+                    f"{current_repr} -> {target_repr}"
                 ),
                 details={
-                    "current": current.value,
-                    "target": target.value,
+                    "current": current_repr,
+                    "target": target_repr,
                 },
             )
 
