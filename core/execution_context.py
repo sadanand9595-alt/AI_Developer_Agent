@@ -84,6 +84,14 @@ class ExecutionContext:
     ) -> "ExecutionContext":
         """Create a validated execution context."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            raise ValueError(
+                "Execution ID must be a string."
+            )
+
         normalized_execution_id = (
             execution_id.strip()
         )
@@ -91,6 +99,22 @@ class ExecutionContext:
         if not normalized_execution_id:
             raise ValueError(
                 "Execution ID cannot be empty."
+            )
+
+        if permissions is not None and not isinstance(
+            permissions,
+            (set, frozenset),
+        ):
+            raise ValueError(
+                "Permissions must be a set or frozenset."
+            )
+
+        if metadata is not None and not isinstance(
+            metadata,
+            dict,
+        ):
+            raise ValueError(
+                "Metadata must be a dictionary."
             )
 
         return cls(

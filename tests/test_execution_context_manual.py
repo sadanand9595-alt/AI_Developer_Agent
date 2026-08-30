@@ -266,6 +266,88 @@ def main() -> None:
 
     print("DEFAULTS: PASS")
 
+    # -------------------------------------------------
+    # NON-STRING EXECUTION ID (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+
+    for bad_id in (None, 123, ["not", "a", "string"]):
+        try:
+            ExecutionContext.create(
+                execution_id=bad_id
+            )
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "create() raised unexpected exception for "
+                f"execution_id={bad_id!r}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"Non-string execution_id {bad_id!r} should "
+                "be rejected."
+            )
+
+    print("NON-STRING EXECUTION ID: PASS")
+
+    # -------------------------------------------------
+    # INVALID PERMISSIONS TYPE
+    # -------------------------------------------------
+
+    for bad_permissions in (123, "not-a-set", ["a", "b"]):
+        try:
+            ExecutionContext.create(
+                execution_id="execution-invalid-permissions",
+                permissions=bad_permissions,
+            )
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "create() raised unexpected exception for "
+                f"permissions={bad_permissions!r}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"Invalid permissions {bad_permissions!r} should "
+                "be rejected."
+            )
+
+    print("INVALID PERMISSIONS TYPE: PASS")
+
+    # -------------------------------------------------
+    # INVALID METADATA TYPE
+    # -------------------------------------------------
+    #
+    # A non-dict metadata must be rejected at create()
+    # rather than silently accepted and later crashing
+    # with_metadata()'s dict.update() call.
+    # -------------------------------------------------
+
+    for bad_metadata in (123, "not-a-dict", ["a", "b"]):
+        try:
+            ExecutionContext.create(
+                execution_id="execution-invalid-metadata",
+                metadata=bad_metadata,
+            )
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "create() raised unexpected exception for "
+                f"metadata={bad_metadata!r}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"Invalid metadata {bad_metadata!r} should "
+                "be rejected."
+            )
+
+    print("INVALID METADATA TYPE: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION CONTEXT: PASS")
