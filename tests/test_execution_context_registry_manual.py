@@ -291,6 +291,51 @@ def main() -> None:
 
     print("CLEAR: PASS")
 
+    # -------------------------------------------------
+    # NON-STRING ID (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+    #
+    # A non-string context_id/execution_id must be
+    # rejected via each method's existing contract
+    # (False/None), never raise an unrelated exception.
+    # -------------------------------------------------
+
+    for bad_id in (None, 123, ["not", "a", "string"]):
+        try:
+            unregister_result = registry.unregister(bad_id)
+            get_result = registry.get(bad_id)
+            get_by_execution_result = (
+                registry.get_by_execution(bad_id)
+            )
+            contains_result = registry.contains(bad_id)
+        except Exception as exc:
+            raise RuntimeError(
+                "Lookup method raised unexpected exception for "
+                f"{bad_id!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if unregister_result is not False:
+            raise RuntimeError(
+                f"unregister should return False for {bad_id!r}."
+            )
+
+        if get_result is not None:
+            raise RuntimeError(
+                f"get should return None for {bad_id!r}."
+            )
+
+        if get_by_execution_result is not None:
+            raise RuntimeError(
+                f"get_by_execution should return None for {bad_id!r}."
+            )
+
+        if contains_result is not False:
+            raise RuntimeError(
+                f"contains should return False for {bad_id!r}."
+            )
+
+    print("NON-STRING ID SAFETY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION CONTEXT REGISTRY: PASS")

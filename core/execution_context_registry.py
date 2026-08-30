@@ -52,6 +52,12 @@ class ExecutionContextRegistry:
     ) -> bool:
         """Remove a context by context ID."""
 
+        if not isinstance(
+            context_id,
+            str,
+        ):
+            return False
+
         normalized_id = context_id.strip()
 
         if not normalized_id:
@@ -72,6 +78,12 @@ class ExecutionContextRegistry:
     ) -> ExecutionContext | None:
         """Get a context by context ID."""
 
+        if not isinstance(
+            context_id,
+            str,
+        ):
+            return None
+
         normalized_id = context_id.strip()
 
         if not normalized_id:
@@ -87,6 +99,12 @@ class ExecutionContextRegistry:
         execution_id: str,
     ) -> ExecutionContext | None:
         """Get a context by execution ID."""
+
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return None
 
         normalized_id = execution_id.strip()
 
