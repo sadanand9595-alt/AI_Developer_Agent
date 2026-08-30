@@ -3,6 +3,7 @@ from core.action_registry import ActionRegistry
 from core.pipeline_context import PipelineContext
 from core.plan_executor import PlanExecutor
 from core.plan_builder import PlanBuilder
+from core.planner import ExecutionPlan, PlanStep
 from core.result import Result
 
 
@@ -245,6 +246,110 @@ def main() -> None:
     )
 
     print("PLAN VALIDATION: PASS")
+
+    # -------------------------------------------------
+    # INVALID CONTEXT
+    # -------------------------------------------------
+
+    invalid_context_result = executor.execute(
+        plan,
+        "invalid-context",
+    )
+
+    if invalid_context_result.is_success():
+        raise RuntimeError(
+            "Invalid context should be rejected."
+        )
+
+    print(
+        "INVALID CONTEXT:",
+        invalid_context_result.error.code,
+    )
+
+    print("CONTEXT VALIDATION: PASS")
+
+    # -------------------------------------------------
+    # EMPTY PLAN
+    # -------------------------------------------------
+
+    empty_plan = ExecutionPlan(
+        plan_id="empty-plan",
+        request="Empty plan test.",
+        steps=(),
+        metadata={},
+    )
+
+    empty_plan_result = executor.execute(
+        empty_plan,
+        PipelineContext(),
+    )
+
+    if empty_plan_result.is_success():
+        raise RuntimeError(
+            "Empty plan should be rejected."
+        )
+
+    if empty_plan_result.error.code != (
+        "EMPTY_EXECUTION_PLAN"
+    ):
+        raise RuntimeError(
+            "Unexpected empty plan error: "
+            f"{empty_plan_result.error.code}"
+        )
+
+    print("EMPTY PLAN: PASS")
+
+    # -------------------------------------------------
+    # NON-INT STEP ORDER (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+    #
+    # A malformed plan built outside PlanBuilder (which
+    # always assigns integer order) must return a Result
+    # failure, never raise.
+    # -------------------------------------------------
+
+    for bad_order in ("first", True, 1.5):
+        malformed_plan = ExecutionPlan(
+            plan_id="malformed-order-plan",
+            request="Malformed order test.",
+            steps=(
+                PlanStep(
+                    step_id="step-1",
+                    name="analyze",
+                    description="Analyze requirements.",
+                    action="analyze",
+                    order=bad_order,
+                ),
+            ),
+            metadata={},
+        )
+
+        try:
+            malformed_result = executor.execute(
+                malformed_plan,
+                PipelineContext(),
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "Executor raised for non-int order "
+                f"{bad_order!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if malformed_result.is_success():
+            raise RuntimeError(
+                f"Non-int step order {bad_order!r} should "
+                "be rejected."
+            )
+
+        if malformed_result.error.code != (
+            "INVALID_STEP_ORDER"
+        ):
+            raise RuntimeError(
+                "Unexpected error code for non-int order "
+                f"{bad_order!r}: {malformed_result.error.code}"
+            )
+
+    print("NON-INT STEP ORDER SAFETY: PASS")
 
     print()
     print("=" * 60)

@@ -80,7 +80,11 @@ class PlanExecutor:
         previous_order = 0
 
         for step in plan.steps:
-            if step.order <= previous_order:
+            if (
+                not isinstance(step.order, int)
+                or isinstance(step.order, bool)
+                or step.order <= previous_order
+            ):
                 return Result.fail(
                     "INVALID_STEP_ORDER",
                     "Execution steps must be strictly ordered.",
