@@ -31,6 +31,15 @@ class ActionRegistry:
     ) -> Result[None]:
         """Register an action handler."""
 
+        if not isinstance(
+            name,
+            str,
+        ):
+            return Result.fail(
+                "INVALID_ACTION_NAME",
+                "Action name must be a string.",
+            )
+
         normalized_name = name.strip()
 
         if not normalized_name:
@@ -70,6 +79,15 @@ class ActionRegistry:
     ) -> Result[None]:
         """Remove an action handler."""
 
+        if not isinstance(
+            name,
+            str,
+        ):
+            return Result.fail(
+                "INVALID_ACTION_NAME",
+                "Action name must be a string.",
+            )
+
         normalized_name = name.strip()
 
         if not normalized_name:
@@ -100,6 +118,15 @@ class ActionRegistry:
     ) -> Result[ActionHandler]:
         """Return a registered action handler."""
 
+        if not isinstance(
+            name,
+            str,
+        ):
+            return Result.fail(
+                "INVALID_ACTION_NAME",
+                "Action name must be a string.",
+            )
+
         normalized_name = name.strip()
 
         if not normalized_name:
@@ -129,6 +156,12 @@ class ActionRegistry:
         name: str,
     ) -> bool:
         """Return whether an action is registered."""
+
+        if not isinstance(
+            name,
+            str,
+        ):
+            return False
 
         normalized_name = name.strip()
 

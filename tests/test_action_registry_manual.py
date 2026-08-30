@@ -199,6 +199,56 @@ def main() -> None:
 
     print("CLEAR: PASS")
 
+    # -------------------------------------------------
+    # NON-STRING NAME (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+    #
+    # A non-string action name must return a Result
+    # failure (or False for contains()), never raise.
+    # -------------------------------------------------
+
+    for bad_name in (None, 123, ["not", "a", "string"]):
+        for label, call in (
+            ("register", lambda: registry.register(bad_name, analyze_handler)),
+            ("get", lambda: registry.get(bad_name)),
+            ("unregister", lambda: registry.unregister(bad_name)),
+        ):
+            try:
+                call_result = call()
+            except Exception as exc:
+                raise RuntimeError(
+                    f"{label} raised for non-string name "
+                    f"{bad_name!r}: {type(exc).__name__}: {exc}"
+                )
+
+            if call_result.is_success():
+                raise RuntimeError(
+                    f"{label} should reject non-string name "
+                    f"{bad_name!r}."
+                )
+
+            if call_result.error.code != "INVALID_ACTION_NAME":
+                raise RuntimeError(
+                    f"Unexpected {label} error code for "
+                    f"{bad_name!r}: {call_result.error.code}"
+                )
+
+        try:
+            contains_result = registry.contains(bad_name)
+        except Exception as exc:
+            raise RuntimeError(
+                f"contains raised for non-string name "
+                f"{bad_name!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if contains_result is not False:
+            raise RuntimeError(
+                f"contains should return False for non-string "
+                f"name {bad_name!r}."
+            )
+
+    print("NON-STRING NAME SAFETY: PASS")
+
     print()
     print("=" * 60)
     print("ACTION REGISTRY: PASS")
