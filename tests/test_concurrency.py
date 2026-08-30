@@ -742,6 +742,122 @@ def test_execution_event_bus_concurrent_unsubscribe() -> None:
     assert bus.listener_count() == 0
 
 
+def test_execution_event_bus_concurrent_publish() -> None:
+    """Concurrent publish calls from multiple threads are safe.
+
+    Listeners are registered before publishing starts, so every publish
+    must notify every listener exactly once regardless of interleaving.
+    """
+    bus = ExecutionEventBus()
+    num_listeners = 10
+    num_publishers = 15
+
+    counters = [0] * num_listeners
+    locks = [threading.Lock() for _ in range(num_listeners)]
+
+    def make_listener(idx: int):
+        def listener(event: ExecutionEvent) -> None:
+            with locks[idx]:
+                counters[idx] += 1
+        return listener
+
+    for i in range(num_listeners):
+        bus.subscribe(make_listener(i))
+
+    barrier = threading.Barrier(num_publishers)
+    errors: list[str] = []
+    notified_counts: list[int] = []
+    notified_lock = threading.Lock()
+
+    def publisher(idx: int) -> None:
+        try:
+            barrier.wait()
+            event = ExecutionEvent.create(
+                event_type=ExecutionEventType.STARTED,
+                execution_id=f"exec_{idx}",
+            )
+            notified = bus.publish(event)
+            with notified_lock:
+                notified_counts.append(notified)
+        except Exception as exc:
+            errors.append(f"Publisher {idx} exception: {exc}")
+
+    threads = [
+        threading.Thread(target=publisher, args=(i,))
+        for i in range(num_publishers)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors, f"Errors: {errors}"
+    assert notified_counts == [num_listeners] * num_publishers
+    assert counters == [num_publishers] * num_listeners
+
+
+def test_execution_event_bus_publish_snapshot_isolation() -> None:
+    """publish() operates on a stable snapshot even while subscribe/unsubscribe
+    run concurrently on other listeners.
+
+    A listener that stays subscribed for the whole test must be notified
+    exactly once per publish call, and no thread may observe an exception,
+    regardless of how subscribe/unsubscribe/publish interleave.
+    """
+    bus = ExecutionEventBus()
+
+    stable_calls = 0
+    stable_lock = threading.Lock()
+
+    def stable_listener(event: ExecutionEvent) -> None:
+        nonlocal stable_calls
+        with stable_lock:
+            stable_calls += 1
+
+    bus.subscribe(stable_listener)
+
+    num_publishes = 30
+    num_churn = 30
+    errors: list[str] = []
+
+    barrier = threading.Barrier(2)
+
+    def publisher() -> None:
+        try:
+            barrier.wait()
+            for i in range(num_publishes):
+                event = ExecutionEvent.create(
+                    event_type=ExecutionEventType.STARTED,
+                    execution_id=f"exec_{i}",
+                )
+                bus.publish(event)
+        except Exception as exc:
+            errors.append(f"Publisher exception: {exc}")
+
+    def churner() -> None:
+        try:
+            barrier.wait()
+            for i in range(num_churn):
+                def transient(event: ExecutionEvent) -> None:
+                    return None
+
+                bus.subscribe(transient)
+                bus.unsubscribe(transient)
+        except Exception as exc:
+            errors.append(f"Churner exception: {exc}")
+
+    t1 = threading.Thread(target=publisher)
+    t2 = threading.Thread(target=churner)
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    assert not errors, f"Errors: {errors}"
+    assert stable_calls == num_publishes
+    assert bus.listener_count() == 1
+
+
 def test_execution_event_bus_exception_isolation() -> None:
     """EventBus isolates listener exceptions; other listeners still receive events."""
     bus = ExecutionEventBus()
