@@ -45,6 +45,15 @@ class PlanningPipeline:
         - metadata
         """
 
+        if not isinstance(
+            request,
+            str,
+        ):
+            return Result.fail(
+                "INVALID_REQUEST",
+                "Planning request must be a string.",
+            )
+
         normalized_request = request.strip()
 
         if not normalized_request:

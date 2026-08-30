@@ -140,6 +140,32 @@ def main() -> None:
         invalid_steps.error.code,
     )
 
+    # Non-string request protection.
+    #
+    # A non-string request must return a Result failure,
+    # not raise at the public boundary.
+
+    for invalid_request in (None, 123, ["not", "a", "string"]):
+        invalid_request_result = pipeline.create_plan(
+            request=invalid_request,
+            steps=steps,
+        )
+
+        if invalid_request_result.is_success():
+            raise RuntimeError(
+                "Non-string request should be rejected."
+            )
+
+        if invalid_request_result.error.code != (
+            "INVALID_REQUEST"
+        ):
+            raise RuntimeError(
+                "Unexpected invalid request error: "
+                f"{invalid_request_result.error.code}"
+            )
+
+    print("INVALID REQUEST TYPE: PASS")
+
     print()
     print("=" * 60)
     print("PLANNING PIPELINE: PASS")
