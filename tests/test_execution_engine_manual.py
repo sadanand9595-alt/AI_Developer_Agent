@@ -283,6 +283,33 @@ def main() -> None:
 
     print("EXECUTE_PLAN VALIDATION: PASS")
 
+    for bad_registry in ("not-a-registry", 123):
+        try:
+            ExecutionEngine(bad_registry)
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid registry {bad_registry!r} should "
+                "be rejected."
+            )
+
+    for bad_coordinator in ("not-a-coordinator", 123):
+        try:
+            ExecutionEngine(
+                ActionRegistry(),
+                coordinator=bad_coordinator,
+            )
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid coordinator {bad_coordinator!r} should "
+                "be rejected."
+            )
+
+    print("INVALID DEPENDENCIES: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION ENGINE: PASS")

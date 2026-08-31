@@ -22,6 +22,22 @@ class ExecutionEngine:
         registry: ActionRegistry,
         coordinator: ExecutionCoordinator | None = None,
     ) -> None:
+        if not isinstance(
+            registry,
+            ActionRegistry,
+        ):
+            raise TypeError(
+                "Expected an ActionRegistry instance."
+            )
+
+        if coordinator is not None and not isinstance(
+            coordinator,
+            ExecutionCoordinator,
+        ):
+            raise TypeError(
+                "Expected an ExecutionCoordinator instance."
+            )
+
         self._registry = registry
 
         self._coordinator = (
