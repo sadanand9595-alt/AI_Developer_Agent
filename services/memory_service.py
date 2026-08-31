@@ -10,6 +10,9 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from database.models.memory import Memory
+from database.repositories.conversation_repository import (
+    ConversationRepository,
+)
 from database.repositories.memory_repository import (
     MemoryRepository,
 )
@@ -20,6 +23,9 @@ class MemoryService:
 
     def __init__(self, session: Session) -> None:
         self._repository = MemoryRepository(session)
+        self._conversation_repository = ConversationRepository(
+            session
+        )
 
     def create_memory(
         self,
@@ -40,6 +46,24 @@ class MemoryService:
             raise ValueError(
                 "Memory content cannot be empty."
             )
+
+        if conversation_id is not None:
+            conversation = (
+                self._conversation_repository.get_by_id(
+                    conversation_id
+                )
+            )
+
+            if conversation is None:
+                raise ValueError(
+                    "Conversation not found."
+                )
+
+            if conversation.is_archived:
+                raise ValueError(
+                    "Cannot add a memory to an archived "
+                    "conversation."
+                )
 
         return self._repository.create(
             user_id=user_id,

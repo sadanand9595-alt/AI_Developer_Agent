@@ -1,6 +1,7 @@
 ﻿from uuid import uuid4
 
 from database.session import session_scope
+from services.conversation_service import ConversationService
 from services.memory_service import MemoryService
 from services.user_service import UserService
 
@@ -56,6 +57,91 @@ def main() -> None:
         deactivated = memory_service.deactivate_memory(memory.id)
 
         print("ACTIVE:", deactivated.is_active)
+
+        # -------------------------------------------------
+        # MEMORY <-> CONVERSATION PARENT LIFECYCLE
+        # -------------------------------------------------
+        #
+        # A memory created without a conversation_id must be
+        # unaffected. A memory created against a nonexistent or
+        # archived conversation must be rejected with a clean
+        # ValueError, not an uncaught database IntegrityError.
+        # -------------------------------------------------
+
+        no_conversation_memory = memory_service.create_memory(
+            user_id=user.id,
+            content="Memory without a conversation.",
+            memory_type="fact",
+        )
+
+        if no_conversation_memory.conversation_id is not None:
+            raise RuntimeError(
+                "Memory without a conversation_id should "
+                "not gain one."
+            )
+
+        print("MEMORY WITHOUT CONVERSATION: PASS")
+
+        conversation_service = ConversationService(session)
+
+        conversation = (
+            conversation_service.create_conversation(
+                user_id=user.id,
+                title="Memory Lifecycle Test",
+            )
+        )
+
+        linked_memory = memory_service.create_memory(
+            user_id=user.id,
+            content="Memory linked to a live conversation.",
+            memory_type="fact",
+            conversation_id=conversation.id,
+        )
+
+        if linked_memory.conversation_id != conversation.id:
+            raise RuntimeError(
+                "Memory should be linked to the conversation."
+            )
+
+        print("MEMORY WITH VALID CONVERSATION: PASS")
+
+        try:
+            memory_service.create_memory(
+                user_id=user.id,
+                content="Should not be created.",
+                memory_type="fact",
+                conversation_id="nonexistent-conversation-id",
+            )
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(
+                "Memory for a nonexistent conversation should "
+                "be rejected."
+            )
+
+        print("MISSING CONVERSATION PROTECTION: PASS")
+
+        conversation_service.archive_conversation(
+            conversation.id
+        )
+
+        try:
+            memory_service.create_memory(
+                user_id=user.id,
+                content="Should not be added after archive.",
+                memory_type="fact",
+                conversation_id=conversation.id,
+            )
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(
+                "Memory should not be addable to an archived "
+                "conversation."
+            )
+
+        print("ARCHIVED CONVERSATION PROTECTION: PASS")
 
 
 if __name__ == "__main__":
