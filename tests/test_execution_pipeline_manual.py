@@ -159,6 +159,22 @@ def main() -> None:
             "Duplicate stage should be rejected."
         )
 
+    non_string_pipeline = ExecutionPipeline()
+
+    try:
+        non_string_pipeline.add_stage(
+            PipelineStage(
+                name=123,
+                handler=lambda value: Result.ok(value),
+            )
+        )
+    except ValueError:
+        print("NON-STRING STAGE NAME PROTECTION: PASS")
+    else:
+        raise RuntimeError(
+            "Non-string stage name should be rejected."
+        )
+
     print()
     print("=" * 60)
     print("EXECUTION PIPELINE: PASS")

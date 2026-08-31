@@ -20,6 +20,14 @@ class PlanningPipeline:
         self,
         validator: PlanValidator | None = None,
     ) -> None:
+        if validator is not None and not isinstance(
+            validator,
+            PlanValidator,
+        ):
+            raise TypeError(
+                "Expected a PlanValidator instance."
+            )
+
         self._validator = (
             validator
             if validator is not None

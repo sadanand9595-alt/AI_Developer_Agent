@@ -27,6 +27,11 @@ class ExecutionPipelineBuilder:
     ) -> "ExecutionPipelineBuilder":
         """Add a validated stage to the pipeline."""
 
+        if not isinstance(name, str):
+            raise TypeError(
+                "Pipeline stage name must be a string."
+            )
+
         normalized_name = name.strip()
 
         if not normalized_name:

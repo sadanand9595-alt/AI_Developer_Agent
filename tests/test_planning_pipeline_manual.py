@@ -166,6 +166,19 @@ def main() -> None:
 
     print("INVALID REQUEST TYPE: PASS")
 
+    for bad_validator in ("not-a-validator", 123):
+        try:
+            PlanningPipeline(validator=bad_validator)
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid validator {bad_validator!r} should "
+                "be rejected."
+            )
+
+    print("INVALID VALIDATOR DEPENDENCY: PASS")
+
     print()
     print("=" * 60)
     print("PLANNING PIPELINE: PASS")

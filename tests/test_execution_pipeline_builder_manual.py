@@ -100,6 +100,19 @@ def main() -> None:
             "Non-callable handler should be rejected."
         )
 
+    # Non-string name test.
+    try:
+        builder.add_stage(
+            123,
+            lambda value: Result.ok(value),
+        )
+    except TypeError:
+        print("NON-STRING NAME PROTECTION: PASS")
+    else:
+        raise RuntimeError(
+            "Non-string stage name should be rejected."
+        )
+
     print()
     print("=" * 60)
     print("EXECUTION PIPELINE BUILDER: PASS")

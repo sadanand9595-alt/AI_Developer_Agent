@@ -33,7 +33,7 @@ class PipelineStage(Generic[T, U]):
     ) -> Result[U]:
         """Execute this pipeline stage."""
 
-        if not self.name.strip():
+        if not isinstance(self.name, str) or not self.name.strip():
             return Result.fail(
                 "INVALID_STAGE_NAME",
                 "Pipeline stage name cannot be empty.",
@@ -85,7 +85,7 @@ class ExecutionPipeline(Generic[T]):
     ) -> None:
         """Add a stage to the pipeline."""
 
-        if not stage.name.strip():
+        if not isinstance(stage.name, str) or not stage.name.strip():
             raise ValueError(
                 "Pipeline stage name cannot be empty."
             )
