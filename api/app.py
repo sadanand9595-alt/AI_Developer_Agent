@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.errors import register_exception_handlers
 from api.routers import approvals, auth, conversations, tasks
@@ -35,6 +36,22 @@ def create_app() -> FastAPI:
     )
 
     register_exception_handlers(app)
+
+    # CORS is only opened for the local Vite dev server, and only
+    # outside production. It is never wildcarded, and never enabled
+    # in production, so this does not weaken the deployed API's
+    # security boundary.
+    if settings.app_env.strip().lower() != "production":
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+            ],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     app.include_router(auth.router)
     app.include_router(tasks.router)
