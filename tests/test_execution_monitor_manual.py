@@ -1,5 +1,6 @@
 from core.execution_event_bus import ExecutionEventBus
 from core.execution_monitor import ExecutionMonitor
+from core.execution_observer import ExecutionObserver
 from core.execution_tracker import ExecutionTracker
 
 
@@ -423,6 +424,62 @@ def main() -> None:
         )
 
     print("CLOSE: PASS")
+
+    # -------------------------------------------------
+    # INVALID DEPENDENCIES (CONSTRUCTOR VALIDATION)
+    # -------------------------------------------------
+
+    for bad_tracker in ("not-a-tracker", 123, None):
+        try:
+            ExecutionMonitor(bad_tracker, ExecutionEventBus())
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid tracker {bad_tracker!r} should be rejected."
+            )
+
+    for bad_bus in ("not-a-bus", 123, None):
+        try:
+            ExecutionMonitor(ExecutionTracker(), bad_bus)
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid event_bus {bad_bus!r} should be rejected."
+            )
+
+    try:
+        ExecutionMonitor(
+            ExecutionTracker(),
+            ExecutionEventBus(),
+            observer="not-an-observer",
+        )
+    except TypeError:
+        pass
+    else:
+        raise RuntimeError(
+            "Invalid observer should be rejected."
+        )
+
+    # A valid, explicitly supplied observer must be used as-is.
+    injected_bus = ExecutionEventBus()
+    injected_observer = ExecutionObserver(injected_bus)
+
+    injected_monitor = ExecutionMonitor(
+        ExecutionTracker(),
+        injected_bus,
+        observer=injected_observer,
+    )
+
+    if injected_monitor._observer is not injected_observer:
+        raise RuntimeError(
+            "Explicitly supplied observer should be used as-is."
+        )
+
+    injected_monitor.close()
+
+    print("INVALID DEPENDENCIES: PASS")
 
     print()
     print("=" * 60)

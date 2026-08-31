@@ -31,6 +31,30 @@ class ExecutionMonitor:
         event_bus: ExecutionEventBus,
         observer: ExecutionObserver | None = None,
     ) -> None:
+        if not isinstance(
+            tracker,
+            ExecutionTracker,
+        ):
+            raise TypeError(
+                "Expected an ExecutionTracker instance."
+            )
+
+        if not isinstance(
+            event_bus,
+            ExecutionEventBus,
+        ):
+            raise TypeError(
+                "Expected an ExecutionEventBus instance."
+            )
+
+        if observer is not None and not isinstance(
+            observer,
+            ExecutionObserver,
+        ):
+            raise TypeError(
+                "Expected an ExecutionObserver instance."
+            )
+
         self._tracker = tracker
         self._event_bus = event_bus
 
