@@ -52,3 +52,6 @@ embeddings/
 *.pem
 *.key
 .aider*
+
+# Local secrets (never commit)
+secrets/
