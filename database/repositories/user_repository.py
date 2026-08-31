@@ -28,6 +28,12 @@ class UserRepository:
     ) -> User:
         """Create and persist a new user."""
 
+        if not isinstance(email, str):
+            raise ValueError("Email must be a string.")
+
+        if not isinstance(name, str):
+            raise ValueError("Name must be a string.")
+
         normalized_email = email.strip().lower()
         normalized_name = name.strip()
 
@@ -66,6 +72,9 @@ class UserRepository:
     ) -> User | None:
         """Return a user by email."""
 
+        if not isinstance(email, str):
+            return None
+
         normalized_email = email.strip().lower()
 
         statement = select(User).where(
@@ -95,6 +104,9 @@ class UserRepository:
         name: str,
     ) -> User:
         """Update a user's display name."""
+
+        if not isinstance(name, str):
+            raise ValueError("Name must be a string.")
 
         normalized_name = name.strip()
 

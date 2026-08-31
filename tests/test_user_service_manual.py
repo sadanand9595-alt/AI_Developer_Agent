@@ -61,6 +61,32 @@ def main() -> None:
             len(active_users),
         )
 
+        # -------------------------------------------------
+        # NON-STRING FIELD SAFETY
+        # -------------------------------------------------
+
+        for bad_kwargs in (
+            {"email": None, "name": "x"},
+            {"email": 123, "name": "x"},
+            {"email": "a@b.com", "name": None},
+        ):
+            try:
+                service.create_user(**bad_kwargs)
+            except ValueError:
+                pass
+            else:
+                raise RuntimeError(
+                    f"Non-string field {bad_kwargs!r} should "
+                    "be rejected."
+                )
+
+        if service.get_user_by_email(None) is not None:
+            raise RuntimeError(
+                "Non-string email lookup should return None."
+            )
+
+        print("NON-STRING FIELD SAFETY: PASS")
+
 
 if __name__ == "__main__":
     main()

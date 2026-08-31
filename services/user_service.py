@@ -33,6 +33,9 @@ class UserService:
             ValueError: If the email is already registered.
         """
 
+        if not isinstance(email, str):
+            raise ValueError("Email must be a string.")
+
         normalized_email = email.strip().lower()
 
         existing_user = self._repository.get_by_email(
@@ -63,6 +66,9 @@ class UserService:
         email: str,
     ) -> User | None:
         """Get a user by email."""
+
+        if not isinstance(email, str):
+            return None
 
         return self._repository.get_by_email(
             email.strip().lower()

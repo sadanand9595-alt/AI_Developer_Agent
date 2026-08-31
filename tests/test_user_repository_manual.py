@@ -37,6 +37,47 @@ def main() -> None:
 
         print("DEACTIVATED:", found.is_active)
 
+        # -------------------------------------------------
+        # NON-STRING FIELD SAFETY
+        # -------------------------------------------------
+        #
+        # create()/get_by_email()/update_name() called .strip()
+        # before checking isinstance(x, str), crashing with an
+        # unrelated AttributeError for non-string input instead
+        # of a clean ValueError/None.
+        # -------------------------------------------------
+
+        for bad_kwargs in (
+            {"email": None, "name": "x"},
+            {"email": 123, "name": "x"},
+            {"email": "a@b.com", "name": None},
+        ):
+            try:
+                repository.create(**bad_kwargs)
+            except ValueError:
+                pass
+            else:
+                raise RuntimeError(
+                    f"Non-string field {bad_kwargs!r} should "
+                    "be rejected."
+                )
+
+        if repository.get_by_email(None) is not None:
+            raise RuntimeError(
+                "Non-string email lookup should return None."
+            )
+
+        try:
+            repository.update_name(found, None)
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(
+                "Non-string name update should be rejected."
+            )
+
+        print("NON-STRING FIELD SAFETY: PASS")
+
 
 if __name__ == "__main__":
     main()
