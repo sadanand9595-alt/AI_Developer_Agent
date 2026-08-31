@@ -397,6 +397,22 @@ def main() -> None:
 
     print("CLEAR: PASS")
 
+    for kwarg in ("context_service", "registry_service"):
+        for bad_dependency in ("not-valid", 123):
+            try:
+                ExecutionContextCoordinator(
+                    **{kwarg: bad_dependency}
+                )
+            except TypeError:
+                pass
+            else:
+                raise RuntimeError(
+                    f"Invalid {kwarg} {bad_dependency!r} should "
+                    "be rejected."
+                )
+
+    print("INVALID DEPENDENCIES: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION CONTEXT COORDINATOR: PASS")

@@ -71,6 +71,23 @@ class ExecutionContextCoordinator:
                 updated is original
         """
 
+        if context_service is not None and not isinstance(
+            context_service,
+            ExecutionContextService,
+        ):
+            raise TypeError(
+                "Expected an ExecutionContextService instance."
+            )
+
+        if registry_service is not None and not isinstance(
+            registry_service,
+            ExecutionContextRegistryService,
+        ):
+            raise TypeError(
+                "Expected an ExecutionContextRegistryService "
+                "instance."
+            )
+
         self._context_service = (
             context_service
             if context_service is not None
