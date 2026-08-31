@@ -344,6 +344,30 @@ def main() -> None:
 
     print("CLEAR: PASS")
 
+    # Non-string event_type must not crash.
+    try:
+        bus.subscribe(lambda e: None, event_type=123)
+    except TypeError:
+        pass
+    else:
+        raise RuntimeError(
+            "Non-string event_type should be rejected."
+        )
+
+    if bus.unsubscribe(lambda e: None, event_type=123):
+        raise RuntimeError(
+            "Non-string event_type unsubscribe should be a no-op."
+        )
+
+    if bus.listener_count(event_type=123) != 0:
+        raise RuntimeError(
+            "Non-string event_type listener_count should be 0."
+        )
+
+    bus.clear(event_type=123)
+
+    print("NON-STRING EVENT TYPE SAFETY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION EVENT BUS: PASS")

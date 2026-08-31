@@ -44,6 +44,14 @@ class ExecutionEventBus:
                 "Listener must be callable."
             )
 
+        if event_type is not None and not isinstance(
+            event_type,
+            str,
+        ):
+            raise TypeError(
+                "Event type must be a string."
+            )
+
         normalized_type = (
             event_type.strip()
             if event_type is not None
@@ -70,6 +78,12 @@ class ExecutionEventBus:
         event_type: str | None = None,
     ) -> bool:
         """Remove a listener from an event type."""
+
+        if event_type is not None and not isinstance(
+            event_type,
+            str,
+        ):
+            return False
 
         normalized_type = (
             event_type.strip()
@@ -163,6 +177,12 @@ class ExecutionEventBus:
     ) -> int:
         """Return the number of listeners for an event type."""
 
+        if event_type is not None and not isinstance(
+            event_type,
+            str,
+        ):
+            return 0
+
         normalized_type = (
             event_type.strip()
             if event_type is not None
@@ -189,6 +209,12 @@ class ExecutionEventBus:
         with self._lock:
             if event_type is None:
                 self._listeners.clear()
+                return
+
+            if not isinstance(
+                event_type,
+                str,
+            ):
                 return
 
             normalized_type = event_type.strip()
