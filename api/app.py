@@ -11,12 +11,16 @@ from fastapi import FastAPI
 
 from api.errors import register_exception_handlers
 from api.routers import approvals, auth, conversations, tasks
+from config.environment import bootstrap_environment
 from config.settings import settings
 from database.initializer import initialize_database
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Refuses to start outside development with unsafe defaults
+    # (e.g. the well-known default JWT secret) still in place.
+    bootstrap_environment(settings)
     initialize_database()
     yield
 

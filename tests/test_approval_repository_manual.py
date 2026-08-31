@@ -102,6 +102,79 @@ def main() -> None:
 
     print("EXPIRED APPROVAL PROTECTION: PASS")
 
+    # -------------------------------------------------
+    # CONCURRENT DOUBLE-APPROVAL PROTECTION
+    # -------------------------------------------------
+    #
+    # Two sessions each load the same PENDING approval before
+    # either writes. The first to persist must win; the second
+    # -- which is now acting on a stale in-memory copy -- must be
+    # rejected instead of silently overwriting the first reviewer's
+    # decision while still reporting success.
+    # -------------------------------------------------
+
+    with session_scope() as setup_session:
+        setup_user = UserRepository(setup_session).create(
+            email=f"race-user-{uuid4()}@example.com",
+            name="Race Test User",
+            password_hash="test-hash-not-used",
+        )
+
+        race_approval = ApprovalRepository(setup_session).create(
+            user_id=setup_user.id,
+            action="delete_file",
+            reason="Testing concurrent approval protection.",
+            requested_operation="Delete test.py",
+        )
+        race_approval_id = race_approval.id
+        race_user_id = setup_user.id
+
+    with session_scope() as session_a:
+        approval_a = ApprovalRepository(
+            session_a
+        ).get_by_id(race_approval_id)
+
+        with session_scope() as session_b:
+            approval_b = ApprovalRepository(
+                session_b
+            ).get_by_id(race_approval_id)
+
+            # session_b commits first, simulating the winner of
+            # a real concurrent race.
+            ApprovalRepository(session_b).approve(
+                approval_b,
+                reviewer_id=race_user_id,
+                comment="First reviewer wins.",
+            )
+
+        # session_a is still holding the pre-approval snapshot it
+        # loaded before session_b committed.
+        try:
+            ApprovalRepository(session_a).approve(
+                approval_a,
+                reviewer_id=race_user_id,
+                comment="Second reviewer should be rejected.",
+            )
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(
+                "Stale concurrent approve() should be rejected."
+            )
+
+    with session_scope() as verify_session:
+        final = ApprovalRepository(verify_session).get_by_id(
+            race_approval_id
+        )
+
+        if final.reviewer_comment != "First reviewer wins.":
+            raise RuntimeError(
+                "The first, winning approval was overwritten by "
+                "the stale concurrent one."
+            )
+
+    print("CONCURRENT DOUBLE-APPROVAL PROTECTION: PASS")
+
 
 if __name__ == "__main__":
     main()

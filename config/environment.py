@@ -62,6 +62,20 @@ def validate_environment(settings: Settings) -> None:
             "MAX_RETRY_ATTEMPTS cannot be negative."
         )
 
+    # The API layer signs and verifies JWTs with this secret. The
+    # documented default is explicitly dev-only; if it is still in
+    # place outside development, anyone can forge a token for any
+    # user (including an admin) without ever authenticating, since
+    # the default value is publicly known.
+    if (
+        settings.app_env.strip().lower() != "development"
+        and settings.jwt_secret == "development-only-secret"
+    ):
+        raise EnvironmentError(
+            "JWT_SECRET must be set to a real secret outside "
+            "the development environment."
+        )
+
 
 def ensure_directories(settings: Settings) -> None:
     """

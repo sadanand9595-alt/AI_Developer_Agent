@@ -10,6 +10,8 @@ uses) -- no mocking of the service layer.
 
 from __future__ import annotations
 
+import threading
+import time
 from uuid import uuid4
 
 import pytest
@@ -529,3 +531,193 @@ def test_approval_hidden_from_unrelated_user(
         headers=_auth_headers(requester_token),
     )
     assert owner_response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# SECURITY AUDIT REGRESSION TESTS
+# ---------------------------------------------------------------------------
+
+
+def test_login_timing_does_not_reveal_account_existence(
+    client: TestClient,
+) -> None:
+    """
+    A login attempt for a nonexistent email must take roughly the
+    same time as one for a real email with a wrong password.
+
+    Before the fix, a nonexistent email short-circuited before
+    hashing, making it ~50x faster than a real email + wrong
+    password (measured live) -- an account-enumeration side channel
+    even though the error message itself was already identical.
+    A generous 5x threshold tolerates CI/test-runner jitter while
+    still catching a regression back to the short-circuit, which
+    was ~50x.
+    """
+
+    email = _unique_email("timing")
+    client.post(
+        "/auth/register",
+        json={
+            "email": email,
+            "name": "Timing Test",
+            "password": "correct-horse-battery",
+        },
+    )
+
+    def median_login_time(
+        login_email: str,
+        attempts: int = 9,
+    ) -> float:
+        samples = []
+
+        for _ in range(attempts):
+            start = time.perf_counter()
+            client.post(
+                "/auth/login",
+                json={
+                    "email": login_email,
+                    "password": "wrong-password",
+                },
+            )
+            samples.append(time.perf_counter() - start)
+
+        samples.sort()
+        return samples[len(samples) // 2]
+
+    existing_user_time = median_login_time(email)
+    nonexistent_user_time = median_login_time(
+        _unique_email("nobody")
+    )
+
+    ratio = existing_user_time / max(
+        nonexistent_user_time, 1e-6
+    )
+
+    assert ratio < 5, (
+        "Login timing leaks account existence: existing-user "
+        f"median={existing_user_time:.4f}s vs nonexistent-user "
+        f"median={nonexistent_user_time:.4f}s (ratio={ratio:.1f}x)"
+    )
+
+
+def test_concurrent_duplicate_registration_never_returns_500() -> None:
+    """
+    A concurrent duplicate-email registration race must always
+    surface as a controlled 400, never a raw, uncontrolled 500 from
+    an escaped IntegrityError (which also risks leaking internal
+    schema details in server logs/tracebacks).
+    """
+
+    raw_client = TestClient(app, raise_server_exceptions=False)
+    email = _unique_email("concurrent-register")
+
+    results: list[int] = []
+    lock = threading.Lock()
+
+    def worker() -> None:
+        response = raw_client.post(
+            "/auth/register",
+            json={
+                "email": email,
+                "name": "Concurrent",
+                "password": "password-123456",
+            },
+        )
+        with lock:
+            results.append(response.status_code)
+
+    threads = [threading.Thread(target=worker) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert results.count(201) == 1
+    assert results.count(500) == 0
+    assert all(code in (201, 400) for code in results)
+
+
+def test_concurrent_approval_never_double_approves() -> None:
+    """
+    Two concurrent approve() calls for the same request must not
+    both succeed. Before the fix, both callers could receive 200
+    while the second silently overwrote the first reviewer's
+    decision (a lost update / double-approval race).
+    """
+
+    raw_client = TestClient(app, raise_server_exceptions=False)
+
+    requester_email = _unique_email("concurrent-approval-req")
+    requester_register = raw_client.post(
+        "/auth/register",
+        json={
+            "email": requester_email,
+            "name": "Requester",
+            "password": "password-123456",
+        },
+    )
+    requester_id = requester_register.json()["id"]
+
+    admin_email = _unique_email("concurrent-approval-admin")
+    admin_password = "admin-password-123456"
+
+    with session_scope() as session:
+        admin = UserService(session).create_user(
+            email=admin_email,
+            name="Admin",
+            password_hash=hash_password(admin_password),
+            is_admin=True,
+        )
+        admin_id = admin.id
+
+    admin_login = raw_client.post(
+        "/auth/login",
+        json={"email": admin_email, "password": admin_password},
+    )
+    admin_headers = _auth_headers(
+        admin_login.json()["access_token"]
+    )
+
+    with session_scope() as session:
+        from services.approval_service import ApprovalService
+
+        approval = ApprovalService(session).request_approval(
+            user_id=requester_id,
+            action="delete_file",
+            reason="Testing concurrent approval.",
+            requested_operation="Delete a file.",
+        )
+        approval_id = approval.id
+
+    results: list[int] = []
+    lock = threading.Lock()
+
+    def worker() -> None:
+        response = raw_client.post(
+            f"/approvals/{approval_id}/approve",
+            json={},
+            headers=admin_headers,
+        )
+        with lock:
+            results.append(response.status_code)
+
+    threads = [threading.Thread(target=worker) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert results.count(200) == 1
+    assert results.count(500) == 0
+    assert all(code in (200, 400) for code in results)
+
+    with session_scope() as session:
+        from database.repositories.approval_repository import (
+            ApprovalRepository,
+        )
+
+        final = ApprovalRepository(session).get_by_id(
+            approval_id
+        )
+        assert final.status == "approved"
+        assert final.reviewed_by == admin_id

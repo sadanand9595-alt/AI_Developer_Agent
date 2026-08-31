@@ -25,6 +25,15 @@ from services.user_service import UserService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# A fixed dummy hash so a login attempt for a nonexistent email
+# still pays the same pbkdf2 cost as a real one below, instead of
+# short-circuiting near-instantly. Without this, response time
+# leaks whether an email is registered (measured live: ~57x faster
+# for a nonexistent email than a real one with a wrong password).
+_DUMMY_PASSWORD_HASH = hash_password(
+    "dummy-password-for-constant-time-login"
+)
+
 
 @router.post(
     "/register",
@@ -72,12 +81,24 @@ def login(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    if user is None or not user.is_active:
-        raise invalid_credentials
+    # Always run password verification, even when the user does
+    # not exist, so the response time does not reveal whether the
+    # email is registered.
+    stored_hash = (
+        user.password_hash
+        if user is not None
+        else _DUMMY_PASSWORD_HASH
+    )
 
-    if not verify_password(
+    password_valid = verify_password(
         payload.password,
-        user.password_hash,
+        stored_hash,
+    )
+
+    if (
+        user is None
+        or not user.is_active
+        or not password_valid
     ):
         raise invalid_credentials
 

@@ -6,7 +6,7 @@ Provides persistence operations for human approval requests.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from core.types import ApprovalStatus
@@ -109,12 +109,14 @@ class ApprovalRepository:
     ) -> ApprovalRequest:
         """Approve a pending request."""
 
+        previous_status = approval.status
+
         approval.approve(
             reviewer_id=reviewer_id,
             comment=comment,
         )
 
-        self._session.flush()
+        self._commit_transition(approval, previous_status)
 
         return approval
 
@@ -126,14 +128,67 @@ class ApprovalRepository:
     ) -> ApprovalRequest:
         """Reject a pending request."""
 
+        previous_status = approval.status
+
         approval.reject(
             reviewer_id=reviewer_id,
             comment=comment,
         )
 
-        self._session.flush()
+        self._commit_transition(approval, previous_status)
 
         return approval
+
+    def _commit_transition(
+        self,
+        approval: ApprovalRequest,
+        previous_status: str,
+    ) -> None:
+        """
+        Persist a status transition atomically.
+
+        approval.approve()/reject() already validated and mutated
+        the in-memory object above. Two concurrent requests can
+        both load the same PENDING row, both pass that in-memory
+        validation, and both attempt to persist -- a plain flush()
+        has no way to detect this and would let both "succeed"
+        (whichever commits last silently overwrites the other,
+        while both callers are told 200 OK). This closes that
+        window with a single atomic UPDATE conditioned on the
+        status the row was actually in when we started, so a
+        second, now-stale writer gets 0 affected rows instead of a
+        silent overwrite.
+        """
+
+        with self._session.no_autoflush:
+            result = self._session.execute(
+                update(ApprovalRequest)
+                .where(
+                    ApprovalRequest.id == approval.id,
+                    ApprovalRequest.status == previous_status,
+                )
+                .values(
+                    status=approval.status,
+                    reviewed_by=approval.reviewed_by,
+                    reviewer_comment=approval.reviewer_comment,
+                    reviewed_at=approval.reviewed_at,
+                )
+            )
+
+        if result.rowcount == 0:
+            self._session.expire(approval)
+
+            raise ValueError(
+                "Approval request was already updated by a "
+                "concurrent request."
+            )
+
+        # The row was written via a Core statement, bypassing the
+        # ORM unit-of-work. Refresh so the in-memory object matches
+        # what was persisted and is no longer considered dirty
+        # (otherwise a later flush could re-issue a redundant,
+        # unconditioned UPDATE for the same object).
+        self._session.refresh(approval)
 
     def expire(
         self,

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 
 
 def _error_body(code: str, message: str) -> dict:
@@ -33,6 +34,28 @@ def register_exception_handlers(app: FastAPI) -> None:
             content=_error_body(
                 "VALIDATION_ERROR",
                 str(exc),
+            ),
+        )
+
+    @app.exception_handler(IntegrityError)
+    async def _handle_integrity_error(
+        request: Request,
+        exc: IntegrityError,
+    ) -> JSONResponse:
+        # A database-level constraint (e.g. a unique index) can
+        # still fire even after a service's own pre-check passes,
+        # under concurrent requests racing the same check-then-act
+        # sequence (e.g. two simultaneous registrations for the
+        # same email). Each request has its own session (see
+        # api/deps.py get_db()), so this is safe to handle here
+        # without affecting any other in-flight request. Without
+        # this handler the raw IntegrityError (with table/column
+        # names and full SQL) escaped as an uncontrolled 500.
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=_error_body(
+                "CONFLICT",
+                "The request conflicts with existing data.",
             ),
         )
 
