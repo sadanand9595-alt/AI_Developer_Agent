@@ -415,6 +415,104 @@ def main() -> None:
     print("UNKNOWN EXECUTION: PASS")
 
     # -------------------------------------------------
+    # NON-STRING ID/STEP NAME (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+
+    for bad_value in (None, 123, ["not", "a", "string"]):
+        try:
+            tracker.start(bad_value, total_steps=1)
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "start raised unexpected exception for "
+                f"{bad_value!r}: {type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"start should reject execution_id={bad_value!r}."
+            )
+
+        if tracker.get(bad_value) is not None:
+            raise RuntimeError(
+                f"get should return None for {bad_value!r}."
+            )
+
+        if tracker.remove(bad_value) is not False:
+            raise RuntimeError(
+                f"remove should return False for {bad_value!r}."
+            )
+
+        try:
+            tracker.start_step("execution-004", bad_value)
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "start_step raised unexpected exception for "
+                f"step_name={bad_value!r}: {type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"start_step should reject step_name={bad_value!r}."
+            )
+
+        try:
+            tracker.complete_step(bad_value)
+        except (ValueError, KeyError):
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "complete_step raised unexpected exception for "
+                f"execution_id={bad_value!r}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"complete_step should reject execution_id={bad_value!r}."
+            )
+
+    # A non-string, non-None step_name on complete_step()/fail()
+    # must be treated as "no step name supplied", not crash.
+    tracker.start(
+        "execution-boundary",
+        total_steps=5,
+    )
+
+    tracker.start_step(
+        "execution-boundary",
+        "boundary-step",
+    )
+
+    step_progress = tracker.complete_step(
+        "execution-boundary",
+        step_name=123,
+    )
+
+    if step_progress.current_step != "boundary-step":
+        raise RuntimeError(
+            "Non-string step_name should be ignored, leaving "
+            "current_step unchanged."
+        )
+
+    tracker.start_step(
+        "execution-boundary",
+        "another-step",
+    )
+
+    fail_progress = tracker.fail(
+        "execution-boundary",
+        step_name=123,
+    )
+
+    if fail_progress.current_step != "another-step":
+        raise RuntimeError(
+            "Non-string step_name should be ignored by fail() too."
+        )
+
+    print("NON-STRING ID/STEP NAME SAFETY: PASS")
+
+    # -------------------------------------------------
     # CLEAR FINISHED
     # -------------------------------------------------
 

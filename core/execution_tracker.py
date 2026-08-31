@@ -67,6 +67,14 @@ class ExecutionTracker:
     ) -> ExecutionProgress:
         """Start tracking an execution."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            raise ValueError(
+                "Execution ID must be a string."
+            )
+
         normalized_id = execution_id.strip()
 
         if not normalized_id:
@@ -111,6 +119,12 @@ class ExecutionTracker:
     ) -> ExecutionProgress | None:
         """Return tracked execution progress."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return None
+
         normalized_id = execution_id.strip()
 
         if not normalized_id:
@@ -127,6 +141,14 @@ class ExecutionTracker:
         step_name: str,
     ) -> ExecutionProgress:
         """Mark a step as currently executing."""
+
+        if not isinstance(
+            step_name,
+            str,
+        ):
+            raise ValueError(
+                "Step name must be a string."
+            )
 
         normalized_step = step_name.strip()
 
@@ -161,7 +183,7 @@ class ExecutionTracker:
 
         with self._lock:
             if (
-                step_name is not None
+                isinstance(step_name, str)
                 and step_name.strip()
             ):
                 progress.current_step = (
@@ -238,7 +260,7 @@ class ExecutionTracker:
         )
 
         with self._lock:
-            if step_name is not None:
+            if isinstance(step_name, str):
                 normalized_step = step_name.strip()
 
                 if normalized_step:
@@ -301,6 +323,12 @@ class ExecutionTracker:
     ) -> bool:
         """Remove a tracked execution."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return False
+
         normalized_id = execution_id.strip()
 
         if not normalized_id:
@@ -345,6 +373,14 @@ class ExecutionTracker:
         execution_id: str,
     ) -> ExecutionProgress:
         """Return a tracked execution or raise."""
+
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            raise ValueError(
+                "Execution ID must be a string."
+            )
 
         normalized_id = execution_id.strip()
 
