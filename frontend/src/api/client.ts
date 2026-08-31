@@ -35,10 +35,26 @@ async function request<T>(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch {
+    // fetch() itself throws (not an HTTP error response) when the
+    // server is unreachable -- wrong port, not running, DNS/network
+    // failure, or a CORS preflight rejection. Without this, that
+    // exception propagated uncaught past every caller's
+    // `err instanceof ApiError` check, so it fell through to a
+    // generic hardcoded string (e.g. "Registration failed.")
+    // identical to what a real validation error shows, hiding the
+    // actual cause (server unreachable) from the user.
+    throw new ApiError(
+      0,
+      `Could not reach the server at ${API_BASE_URL}. Check that it is running and reachable.`,
+    );
+  }
 
   if (response.status === 204) {
     return undefined as T;
