@@ -58,6 +58,24 @@ def create_task(
 ) -> Task:
     """Create a new task owned by the authenticated user."""
 
+    if payload.conversation_id is not None:
+        from services.conversation_service import (
+            ConversationService,
+        )
+
+        conversation = ConversationService(db).get_conversation(
+            payload.conversation_id
+        )
+
+        if (
+            conversation is None
+            or conversation.user_id != current_user.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found.",
+            )
+
     service = TaskService(db)
 
     return service.create_task(

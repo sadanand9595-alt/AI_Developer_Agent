@@ -721,3 +721,32 @@ def test_concurrent_approval_never_double_approves() -> None:
         )
         assert final.status == "approved"
         assert final.reviewed_by == admin_id
+
+
+def test_task_creation_rejects_other_users_conversation_id(
+    client: TestClient,
+) -> None:
+    owner_token, _, _ = _register_and_login(
+        client, prefix="task-conv-owner"
+    )
+    attacker_token, _, _ = _register_and_login(
+        client, prefix="task-conv-attacker"
+    )
+
+    convo = client.post(
+        "/conversations",
+        json={"title": "Owner convo"},
+        headers=_auth_headers(owner_token),
+    ).json()
+
+    response = client.post(
+        "/tasks",
+        json={
+            "title": "x",
+            "description": "d",
+            "conversation_id": convo["id"],
+        },
+        headers=_auth_headers(attacker_token),
+    )
+
+    assert response.status_code == 404
