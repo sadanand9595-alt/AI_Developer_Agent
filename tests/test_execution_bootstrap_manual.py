@@ -1,5 +1,6 @@
 from core.execution_bootstrap import ExecutionBootstrap
 from core.execution_system import ExecutionSystem
+from core.execution_system_factory import ExecutionSystemFactory
 
 
 def main() -> None:
@@ -219,6 +220,63 @@ def main() -> None:
         )
 
     print("RESTARTED SYSTEM OPERATION: PASS")
+
+    # -------------------------------------------------
+    # RESTART FAILURE LEAVES NO STALE STATE
+    # -------------------------------------------------
+    #
+    # If ExecutionSystemFactory.create() fails during
+    # restart() after the old system was already closed,
+    # the bootstrap must be left honestly uninitialized
+    # (None), not pointing at the stale closed system.
+    # -------------------------------------------------
+
+    failure_bootstrap = ExecutionBootstrap()
+    system_before_failure = failure_bootstrap.initialize()
+
+    original_create = ExecutionSystemFactory.create
+
+    def failing_create():
+        raise RuntimeError("simulated construction failure")
+
+    ExecutionSystemFactory.create = staticmethod(
+        failing_create
+    )
+
+    try:
+        failure_bootstrap.restart()
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError(
+            "restart() should propagate the factory failure."
+        )
+    finally:
+        ExecutionSystemFactory.create = original_create
+
+    if failure_bootstrap.is_initialized():
+        raise RuntimeError(
+            "is_initialized() must be False after a failed "
+            "restart(), not report the stale closed system."
+        )
+
+    if failure_bootstrap.get() is not None:
+        raise RuntimeError(
+            "get() must return None after a failed restart(), "
+            "not the stale closed system."
+        )
+
+    recovered_system = failure_bootstrap.initialize()
+
+    if recovered_system is system_before_failure:
+        raise RuntimeError(
+            "Recovery after a failed restart() should produce "
+            "a fresh system."
+        )
+
+    failure_bootstrap.shutdown()
+
+    print("RESTART FAILURE LEAVES NO STALE STATE: PASS")
 
     # -------------------------------------------------
     # FINAL SHUTDOWN

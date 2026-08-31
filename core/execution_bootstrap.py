@@ -67,6 +67,13 @@ class ExecutionBootstrap:
             if self._system is not None:
                 self._system.close()
 
+            # Clear the reference to the closed system before
+            # attempting to build its replacement. If create()
+            # raises, self._system must be None (an honest "not
+            # initialized" state) rather than a stale reference
+            # to a system that has already been closed.
+            self._system = None
+
             self._system = (
                 ExecutionSystemFactory.create()
             )
