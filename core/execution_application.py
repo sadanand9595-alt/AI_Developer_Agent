@@ -20,6 +20,14 @@ class ExecutionApplication:
         self,
         bootstrap: ExecutionBootstrap | None = None,
     ) -> None:
+        if bootstrap is not None and not isinstance(
+            bootstrap,
+            ExecutionBootstrap,
+        ):
+            raise TypeError(
+                "Expected an ExecutionBootstrap instance."
+            )
+
         self._bootstrap = (
             bootstrap
             if bootstrap is not None

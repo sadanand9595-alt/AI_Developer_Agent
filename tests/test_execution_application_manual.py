@@ -403,6 +403,19 @@ def main() -> None:
 
     print("FINAL STOP: PASS")
 
+    for bad_bootstrap in ("not-a-bootstrap", 123):
+        try:
+            ExecutionApplication(bootstrap=bad_bootstrap)
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid bootstrap {bad_bootstrap!r} should "
+                "be rejected."
+            )
+
+    print("INVALID BOOTSTRAP DEPENDENCY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION APPLICATION: PASS")
