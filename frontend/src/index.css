@@ -157,3 +157,61 @@ body {
 .status-running {
   background: #7a5c1f;
 }
+
+.status-archived {
+  margin-left: 0.5rem;
+  background: #444;
+}
+
+.panel + .panel {
+  margin-top: 1.5rem;
+}
+
+.conversation-layout {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.conversation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.conversation-list li {
+  padding: 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #0f1115;
+}
+
+.conversation-list li.selected {
+  background: #2a3a6a;
+}
+
+.message-view {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.message-list li {
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  background: #0f1115;
+}

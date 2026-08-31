@@ -34,6 +34,15 @@ export interface Conversation {
   updated_at: string;
 }
 
+export interface Message {
+  id: string;
+  conversation_id: string;
+  role: string;
+  content: string;
+  tool_name: string | null;
+  created_at: string;
+}
+
 export interface ApprovalRequest {
   id: string;
   user_id: string;
