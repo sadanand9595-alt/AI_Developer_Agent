@@ -18,6 +18,7 @@ def main() -> None:
         user = user_repository.create(
             email=f"message-{uuid4()}@example.com",
             name="Message Test User",
+            password_hash="test-hash-not-used",
         )
 
         conversation_repository = ConversationRepository(

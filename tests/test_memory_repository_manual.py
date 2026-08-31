@@ -14,6 +14,7 @@ def main() -> None:
         user = user_repository.create(
             email=f"memory-{uuid4()}@example.com",
             name="Memory Test User",
+            password_hash="test-hash-not-used",
         )
 
         repository = MemoryRepository(session)

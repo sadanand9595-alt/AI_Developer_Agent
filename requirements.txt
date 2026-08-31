@@ -1,0 +1,18 @@
+# AI Command Center - runtime dependencies
+#
+# This project previously had no declared dependency file; this is
+# the first one, capturing what was already installed (SQLAlchemy,
+# pytest) plus the new API layer's dependencies.
+
+SQLAlchemy==2.0.52
+pytest==9.1.1
+
+# API layer
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+PyJWT==2.13.0
+python-multipart==0.0.32
+email-validator==2.3.0
+
+# Test client for API integration tests
+httpx==0.28.1

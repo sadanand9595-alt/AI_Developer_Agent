@@ -16,6 +16,7 @@ def main() -> None:
         user = user_service.create_user(
             email=f"orchestrator-{uuid4()}@example.com",
             name="Execution Orchestrator Test User",
+            password_hash="test-hash-not-used",
         )
 
         print("USER: PASS")

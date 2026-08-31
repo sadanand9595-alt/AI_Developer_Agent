@@ -14,6 +14,7 @@ def main() -> None:
         user = user_repository.create(
             email=f"conversation-{uuid4()}@example.com",
             name="Conversation Test User",
+            password_hash="test-hash-not-used",
         )
 
         repository = ConversationRepository(session)

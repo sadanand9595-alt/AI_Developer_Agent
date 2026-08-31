@@ -13,6 +13,7 @@ def main() -> None:
         user = service.create_user(
             email=email,
             name="Service Test User",
+            password_hash="test-hash-not-used",
         )
 
         print("CREATED:", user.id, user.email)
@@ -66,9 +67,9 @@ def main() -> None:
         # -------------------------------------------------
 
         for bad_kwargs in (
-            {"email": None, "name": "x"},
-            {"email": 123, "name": "x"},
-            {"email": "a@b.com", "name": None},
+            {"email": None, "name": "x", "password_hash": "h"},
+            {"email": 123, "name": "x", "password_hash": "h"},
+            {"email": "a@b.com", "name": None, "password_hash": "h"},
         ):
             try:
                 service.create_user(**bad_kwargs)

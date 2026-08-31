@@ -13,6 +13,7 @@ def main() -> None:
         user = user_service.create_user(
             email=f"memory-service-{uuid4()}@example.com",
             name="Memory Service Test User",
+            password_hash="test-hash-not-used",
         )
 
         memory_service = MemoryService(session)

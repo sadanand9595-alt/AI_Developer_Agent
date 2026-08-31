@@ -14,6 +14,7 @@ def main() -> None:
         user = user_service.create_user(
             email=f"approval-service-{uuid4()}@example.com",
             name="Approval Service Test User",
+            password_hash="test-hash-not-used",
         )
 
         approval_service = ApprovalService(session)

@@ -24,6 +24,7 @@ class UserService:
         *,
         email: str,
         name: str,
+        password_hash: str,
         is_admin: bool = False,
     ) -> User:
         """
@@ -50,6 +51,7 @@ class UserService:
         return self._repository.create(
             email=normalized_email,
             name=name,
+            password_hash=password_hash,
             is_admin=is_admin,
         )
 

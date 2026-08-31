@@ -12,6 +12,7 @@ def main() -> None:
         user = user_service.create_user(
             email=f"conversation-service-{uuid4()}@example.com",
             name="Conversation Service Test User",
+            password_hash="test-hash-not-used",
         )
 
         conversation_service = ConversationService(

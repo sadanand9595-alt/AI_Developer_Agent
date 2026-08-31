@@ -12,6 +12,7 @@ def main() -> None:
         user = user_service.create_user(
             email=f"task-service-{uuid4()}@example.com",
             name="Task Service Test User",
+            password_hash="test-hash-not-used",
         )
 
         task_service = TaskService(session)

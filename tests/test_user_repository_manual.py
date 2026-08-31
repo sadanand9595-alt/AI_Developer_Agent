@@ -13,6 +13,7 @@ def main() -> None:
         user = repository.create(
             email=email,
             name="Test User",
+            password_hash="test-hash-not-used",
         )
 
         user_id = user.id
@@ -48,9 +49,9 @@ def main() -> None:
         # -------------------------------------------------
 
         for bad_kwargs in (
-            {"email": None, "name": "x"},
-            {"email": 123, "name": "x"},
-            {"email": "a@b.com", "name": None},
+            {"email": None, "name": "x", "password_hash": "h"},
+            {"email": 123, "name": "x", "password_hash": "h"},
+            {"email": "a@b.com", "name": None, "password_hash": "h"},
         ):
             try:
                 repository.create(**bad_kwargs)

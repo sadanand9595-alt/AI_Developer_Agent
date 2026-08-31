@@ -10,6 +10,7 @@ def main() -> None:
         user = user_repository.create(
             email="task-test@example.com",
             name="Task Test User",
+            password_hash="test-hash-not-used",
         )
 
         task_repository = TaskRepository(session)

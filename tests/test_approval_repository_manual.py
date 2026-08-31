@@ -16,6 +16,7 @@ def main() -> None:
         user = user_repository.create(
             email=f"approval-{uuid4()}@example.com",
             name="Approval Test User",
+            password_hash="test-hash-not-used",
         )
 
         repository = ApprovalRepository(session)

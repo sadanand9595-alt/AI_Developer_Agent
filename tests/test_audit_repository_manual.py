@@ -12,6 +12,7 @@ def main() -> None:
         user = user_repository.create(
             email=f"audit-{uuid4()}@example.com",
             name="Audit Test User",
+            password_hash="test-hash-not-used",
         )
 
         repository = AuditRepository(session)

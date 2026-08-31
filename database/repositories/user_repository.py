@@ -24,6 +24,7 @@ class UserRepository:
         *,
         email: str,
         name: str,
+        password_hash: str,
         is_admin: bool = False,
     ) -> User:
         """Create and persist a new user."""
@@ -33,6 +34,14 @@ class UserRepository:
 
         if not isinstance(name, str):
             raise ValueError("Name must be a string.")
+
+        if (
+            not isinstance(password_hash, str)
+            or not password_hash
+        ):
+            raise ValueError(
+                "Password hash must be a non-empty string."
+            )
 
         normalized_email = email.strip().lower()
         normalized_name = name.strip()
@@ -46,6 +55,7 @@ class UserRepository:
         user = User(
             email=normalized_email,
             name=normalized_name,
+            password_hash=password_hash,
             is_admin=is_admin,
         )
 

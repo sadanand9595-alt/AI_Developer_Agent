@@ -15,6 +15,7 @@ def main() -> None:
         user = user_service.create_user(
             email=f"execution-state-{uuid4()}@example.com",
             name="Execution State Test User",
+            password_hash="test-hash-not-used",
         )
 
         task_service = TaskService(session)

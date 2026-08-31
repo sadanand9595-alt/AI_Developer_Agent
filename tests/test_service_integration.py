@@ -23,6 +23,7 @@ def main() -> None:
         user = user_service.create_user(
             email=f"service-integration-{uuid4()}@example.com",
             name="Service Integration User",
+            password_hash="test-hash-not-used",
         )
 
         print("USER SERVICE: PASS")

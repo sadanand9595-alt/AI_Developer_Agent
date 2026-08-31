@@ -12,6 +12,7 @@ def main() -> None:
         user = user_service.create_user(
             email=f"audit-service-{uuid4()}@example.com",
             name="Audit Service Test User",
+            password_hash="test-hash-not-used",
         )
 
         audit_service = AuditService(session)

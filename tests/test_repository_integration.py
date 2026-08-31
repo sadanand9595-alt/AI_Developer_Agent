@@ -26,6 +26,7 @@ def main() -> None:
         user = user_repo.create(
             email=f"integration-{uuid4()}@example.com",
             name="Integration Test User",
+            password_hash="test-hash-not-used",
         )
 
         print("USER: PASS")
