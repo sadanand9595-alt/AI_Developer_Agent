@@ -1,7 +1,9 @@
 from uuid import uuid4
 
+from core.types import ToolRiskLevel
 from database.session import session_scope
 from services.approval_service import ApprovalService
+from services.tool_service import ToolService
 from services.user_service import UserService
 
 
@@ -72,6 +74,57 @@ def main() -> None:
             "COMMENT:",
             approved.reviewer_comment,
         )
+
+        # -------------------------------------------------
+        # APPROVAL <-> TOOL PARENT INTEGRITY
+        # -------------------------------------------------
+        #
+        # An approval referencing a nonexistent tool_id must be
+        # rejected with a clean ValueError, not an uncaught
+        # database IntegrityError. A valid tool_id must still
+        # work normally.
+        # -------------------------------------------------
+
+        tool_service = ToolService(session)
+
+        tool = tool_service.register_tool(
+            name=f"Approval Test Tool {uuid4()}",
+            tool_type="filesystem",
+            risk_level=ToolRiskLevel.HIGH,
+        )
+
+        tool_approval = approval_service.request_approval(
+            user_id=user.id,
+            action="use_tool",
+            reason="Testing tool-linked approval.",
+            requested_operation="Delete a file.",
+            tool_id=tool.id,
+        )
+
+        if tool_approval.tool_id != tool.id:
+            raise RuntimeError(
+                "Approval should be linked to the tool."
+            )
+
+        print("APPROVAL WITH VALID TOOL: PASS")
+
+        try:
+            approval_service.request_approval(
+                user_id=user.id,
+                action="use_tool",
+                reason="Should not be created.",
+                requested_operation="Delete a file.",
+                tool_id="nonexistent-tool-id",
+            )
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(
+                "Approval for a nonexistent tool should be "
+                "rejected."
+            )
+
+        print("MISSING TOOL PROTECTION: PASS")
 
 
 if __name__ == "__main__":

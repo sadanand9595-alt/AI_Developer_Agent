@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from database.models.approval import ApprovalRequest
 from database.repositories.approval_repository import ApprovalRepository
+from database.repositories.tool_repository import ToolRepository
 
 
 class ApprovalService:
@@ -17,6 +18,7 @@ class ApprovalService:
 
     def __init__(self, session: Session) -> None:
         self._repository = ApprovalRepository(session)
+        self._tool_repository = ToolRepository(session)
 
     def request_approval(
         self,
@@ -31,6 +33,16 @@ class ApprovalService:
         expires_at=None,
     ) -> ApprovalRequest:
         """Create a new human approval request."""
+
+        if tool_id is not None:
+            tool = self._tool_repository.get_by_id(
+                tool_id
+            )
+
+            if tool is None:
+                raise ValueError(
+                    "Tool not found."
+                )
 
         return self._repository.create(
             user_id=user_id,
