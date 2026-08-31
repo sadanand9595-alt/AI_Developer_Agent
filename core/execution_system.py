@@ -21,6 +21,14 @@ class ExecutionSystem:
         self,
         coordinator: ExecutionCoordinator | None = None,
     ) -> None:
+        if coordinator is not None and not isinstance(
+            coordinator,
+            ExecutionCoordinator,
+        ):
+            raise TypeError(
+                "Expected an ExecutionCoordinator instance."
+            )
+
         self._coordinator = (
             coordinator
             if coordinator is not None

@@ -392,6 +392,23 @@ def main() -> None:
 
     print("CLOSE: PASS")
 
+    # -------------------------------------------------
+    # INVALID COORDINATOR DEPENDENCY (CONSTRUCTOR VALIDATION)
+    # -------------------------------------------------
+
+    for bad_coordinator in ("not-a-coordinator", 123):
+        try:
+            ExecutionSystem(coordinator=bad_coordinator)
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid coordinator {bad_coordinator!r} should "
+                "be rejected."
+            )
+
+    print("INVALID COORDINATOR DEPENDENCY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION SYSTEM: PASS")
