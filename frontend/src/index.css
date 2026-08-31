@@ -85,3 +85,75 @@ body {
 .dashboard-body {
   padding: 1.5rem;
 }
+
+.panel {
+  background: #1a1d24;
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.panel-status {
+  opacity: 0.7;
+}
+
+.inline-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.inline-form input {
+  padding: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #333;
+  background: #0f1115;
+  color: inherit;
+}
+
+.inline-form button,
+.task-table button {
+  padding: 0.5rem 0.9rem;
+  border-radius: 4px;
+  border: none;
+  background: #4f7cff;
+  color: white;
+  cursor: pointer;
+}
+
+.inline-form button:disabled,
+.task-table button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.task-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.task-table th,
+.task-table td {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 1px solid #2a2d34;
+}
+
+.status {
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  background: #2a2d34;
+}
+
+.status-completed {
+  background: #1f7a3f;
+}
+
+.status-failed {
+  background: #7a1f1f;
+}
+
+.status-running {
+  background: #7a5c1f;
+}

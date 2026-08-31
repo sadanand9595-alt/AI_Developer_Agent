@@ -1,4 +1,5 @@
 import { useAuth } from "../auth/AuthContext";
+import { TaskPanel } from "../components/TaskPanel";
 
 export function DashboardPage() {
   const { user, logout } = useAuth();
@@ -17,7 +18,7 @@ export function DashboardPage() {
       </header>
 
       <main className="dashboard-body">
-        <p>Signed in. Task, conversation, and approval panels land next.</p>
+        <TaskPanel />
       </main>
     </div>
   );
