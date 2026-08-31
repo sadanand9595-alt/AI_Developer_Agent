@@ -94,6 +94,12 @@ class ExecutionObserver:
     ) -> ExecutionObservation | None:
         """Return the current observation."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return None
+
         normalized_id = execution_id.strip()
 
         if not normalized_id:
@@ -128,6 +134,12 @@ class ExecutionObserver:
     ) -> bool:
         """Remove an execution observation."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return False
+
         normalized_id = execution_id.strip()
 
         if not normalized_id:
@@ -161,7 +173,22 @@ class ExecutionObserver:
     ) -> None:
         """Update an observation from an event."""
 
-        execution_id = event.execution_id
+        raw_execution_id = event.execution_id
+
+        if not isinstance(
+            raw_execution_id,
+            str,
+        ):
+            return
+
+        # Normalized the same way get()/remove() normalize their
+        # lookup key, so an observation is never stored under a
+        # key (e.g. one with surrounding whitespace) that later
+        # queries can never match.
+        execution_id = raw_execution_id.strip()
+
+        if not execution_id:
+            return
 
         with self._lock:
             observation = self._observations.get(

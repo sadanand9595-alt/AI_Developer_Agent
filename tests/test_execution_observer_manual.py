@@ -403,6 +403,101 @@ def main() -> None:
 
     print("CLOSE / UNSUBSCRIBE: PASS")
 
+    # -------------------------------------------------
+    # NON-STRING EXECUTION ID (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+
+    type_check_observer = ExecutionObserver(
+        ExecutionEventBus()
+    )
+
+    for bad_id in (None, 123, ["not", "a", "string"]):
+        try:
+            get_result = type_check_observer.get(bad_id)
+            remove_result = type_check_observer.remove(bad_id)
+        except Exception as exc:
+            raise RuntimeError(
+                "get/remove raised unexpected exception for "
+                f"{bad_id!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if get_result is not None:
+            raise RuntimeError(
+                f"get should return None for {bad_id!r}."
+            )
+
+        if remove_result is not False:
+            raise RuntimeError(
+                f"remove should return False for {bad_id!r}."
+            )
+
+    type_check_observer.close()
+
+    print("NON-STRING EXECUTION ID SAFETY: PASS")
+
+    # -------------------------------------------------
+    # UNNORMALIZED EXECUTION ID KEY CONSISTENCY
+    # -------------------------------------------------
+    #
+    # A directly-constructed ExecutionEvent (bypassing
+    # create()'s own normalization) with surrounding
+    # whitespace in execution_id must not be stored under
+    # a key that get()'s normalized lookup can never match.
+    # -------------------------------------------------
+
+    isolation_observer = ExecutionObserver(
+        ExecutionEventBus()
+    )
+
+    unnormalized_event = ExecutionEvent(
+        event_type=ExecutionEventType.STARTED,
+        execution_id="  execution-unnormalized  ",
+    )
+
+    isolation_observer.observe(unnormalized_event)
+
+    normalized_observation = isolation_observer.get(
+        "execution-unnormalized"
+    )
+
+    if normalized_observation is None:
+        raise RuntimeError(
+            "Observation stored under an unnormalized "
+            "execution_id must still be queryable via the "
+            "normalized ID."
+        )
+
+    if isolation_observer.count() != 1:
+        raise RuntimeError(
+            "Expected exactly one observation, not a "
+            "duplicate/orphaned entry."
+        )
+
+    # A malformed (non-string) execution_id on an event must
+    # be silently ignored, not crash observe()/the event bus.
+    try:
+        isolation_observer.observe(
+            ExecutionEvent(
+                event_type=ExecutionEventType.STARTED,
+                execution_id=None,
+            )
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            "observe() raised for a non-string event "
+            f"execution_id: {type(exc).__name__}: {exc}"
+        )
+
+    if isolation_observer.count() != 1:
+        raise RuntimeError(
+            "A malformed execution_id must not create an "
+            "observation entry."
+        )
+
+    isolation_observer.close()
+
+    print("UNNORMALIZED EXECUTION ID KEY CONSISTENCY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION OBSERVER: PASS")
