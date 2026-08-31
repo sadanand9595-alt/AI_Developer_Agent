@@ -126,6 +126,11 @@ class Task(Base):
     def mark_started(self) -> None:
         """Mark the task as running."""
 
+        if self.status == TaskStatus.COMPLETED.value:
+            raise ValueError(
+                "Cannot start a completed task."
+            )
+
         now = datetime.now(timezone.utc)
 
         self.status = TaskStatus.RUNNING.value
@@ -137,6 +142,15 @@ class Task(Base):
         result: dict | None = None,
     ) -> None:
         """Mark the task as completed."""
+
+        if self.status in (
+            TaskStatus.COMPLETED.value,
+            TaskStatus.FAILED.value,
+        ):
+            raise ValueError(
+                "Cannot complete a task with status "
+                f"{self.status!r}."
+            )
 
         now = datetime.now(timezone.utc)
 
@@ -150,6 +164,15 @@ class Task(Base):
         error: dict | None = None,
     ) -> None:
         """Mark the task as failed."""
+
+        if self.status in (
+            TaskStatus.COMPLETED.value,
+            TaskStatus.FAILED.value,
+        ):
+            raise ValueError(
+                "Cannot fail a task with status "
+                f"{self.status!r}."
+            )
 
         self.status = TaskStatus.FAILED.value
         self.error_json = error
