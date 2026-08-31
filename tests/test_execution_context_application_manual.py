@@ -401,6 +401,21 @@ def main() -> None:
 
     print("CLEAR: PASS")
 
+    for bad_coordinator in ("not-a-coordinator", 123):
+        try:
+            ExecutionContextApplication(
+                coordinator=bad_coordinator
+            )
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid coordinator {bad_coordinator!r} should "
+                "be rejected."
+            )
+
+    print("INVALID COORDINATOR DEPENDENCY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION CONTEXT APPLICATION: PASS")

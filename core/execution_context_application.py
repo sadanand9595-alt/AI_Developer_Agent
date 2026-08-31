@@ -38,6 +38,14 @@ class ExecutionContextApplication:
         which keeps dependency injection and testing supported.
         """
 
+        if coordinator is not None and not isinstance(
+            coordinator,
+            ExecutionContextCoordinator,
+        ):
+            raise TypeError(
+                "Expected an ExecutionContextCoordinator instance."
+            )
+
         self._coordinator = (
             coordinator
             if coordinator is not None
