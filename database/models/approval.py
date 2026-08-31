@@ -112,6 +112,15 @@ class ApprovalRequest(Base):
             f")"
         )
 
+    def _is_expired(self) -> bool:
+        """Return whether the approval window has passed."""
+
+        return (
+            self.expires_at is not None
+            and self.expires_at
+            <= datetime.now(timezone.utc)
+        )
+
     def approve(
         self,
         reviewer_id: str,
@@ -122,6 +131,19 @@ class ApprovalRequest(Base):
         if self.status != ApprovalStatus.PENDING.value:
             raise ValueError(
                 "Only pending approval requests can be approved."
+            )
+
+        # A pending request past its expires_at must not be
+        # approvable: the approval window has already lapsed,
+        # so this authorizes the gated action after the human
+        # approval boundary was meant to have closed.
+        if self._is_expired():
+            self.status = ApprovalStatus.EXPIRED.value
+            self.reviewed_at = datetime.now(timezone.utc)
+
+            raise ValueError(
+                "Approval request has expired and can no "
+                "longer be approved."
             )
 
         self.status = ApprovalStatus.APPROVED.value

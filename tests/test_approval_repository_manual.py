@@ -1,5 +1,7 @@
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+from database.models.approval import ApprovalRequest
 from database.repositories.approval_repository import (
     ApprovalRepository,
 )
@@ -59,6 +61,45 @@ def main() -> None:
         print("APPROVED:", found.status)
         print("REVIEWER:", found.reviewed_by)
         print("COMMENT:", found.reviewer_comment)
+
+    # -------------------------------------------------
+    # EXPIRED APPROVAL SECURITY BOUNDARY
+    # -------------------------------------------------
+    #
+    # A pending request whose expires_at has already passed
+    # must not be approvable. Approving it would authorize a
+    # gated action after the human-approval window has closed.
+    # -------------------------------------------------
+
+    expired = ApprovalRequest(
+        id="expired-approval-1",
+        user_id="user-1",
+        action="delete_file",
+        reason="Testing expiration boundary.",
+        requested_operation="Delete test.py",
+        status="pending",
+        expires_at=(
+            datetime.now(timezone.utc)
+            - timedelta(hours=1)
+        ),
+    )
+
+    try:
+        expired.approve(reviewer_id="reviewer-1")
+    except ValueError:
+        pass
+    else:
+        raise RuntimeError(
+            "Expired approval request should be rejected."
+        )
+
+    if expired.status != "expired":
+        raise RuntimeError(
+            "Expired approval attempt should transition "
+            f"status to expired, got: {expired.status}"
+        )
+
+    print("EXPIRED APPROVAL PROTECTION: PASS")
 
 
 if __name__ == "__main__":
