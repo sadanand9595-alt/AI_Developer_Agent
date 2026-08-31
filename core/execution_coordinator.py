@@ -78,6 +78,55 @@ class ExecutionCoordinator:
         Initialize the execution coordinator.
         """
 
+        if registry is not None and not isinstance(
+            registry,
+            ActionRegistry,
+        ):
+            raise TypeError(
+                "Expected an ActionRegistry instance."
+            )
+
+        if facade is not None and not isinstance(
+            facade,
+            ExecutionFacade,
+        ):
+            raise TypeError(
+                "Expected an ExecutionFacade instance."
+            )
+
+        if registry_service is not None and not isinstance(
+            registry_service,
+            ExecutionRegistryService,
+        ):
+            raise TypeError(
+                "Expected an ExecutionRegistryService instance."
+            )
+
+        if planning_pipeline is not None and not isinstance(
+            planning_pipeline,
+            PlanningPipeline,
+        ):
+            raise TypeError(
+                "Expected a PlanningPipeline instance."
+            )
+
+        if plan_executor is not None and not isinstance(
+            plan_executor,
+            PlanExecutor,
+        ):
+            raise TypeError(
+                "Expected a PlanExecutor instance."
+            )
+
+        if runtime_application is not None and not isinstance(
+            runtime_application,
+            ExecutionContextRuntimeApplication,
+        ):
+            raise TypeError(
+                "Expected an ExecutionContextRuntimeApplication "
+                "instance."
+            )
+
         # -----------------------------------------------------
         # ACTION REGISTRY
         # -----------------------------------------------------

@@ -451,6 +451,29 @@ def main() -> None:
 
     coordinator2.close()
 
+    # -------------------------------------------------
+    # INVALID DEPENDENCIES (CONSTRUCTOR VALIDATION)
+    # -------------------------------------------------
+
+    for kwarg in (
+        "registry",
+        "facade",
+        "registry_service",
+        "planning_pipeline",
+        "plan_executor",
+        "runtime_application",
+    ):
+        try:
+            ExecutionCoordinator(**{kwarg: "not-valid"})
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid {kwarg} should be rejected."
+            )
+
+    print("INVALID DEPENDENCIES: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION COORDINATOR: PASS")
