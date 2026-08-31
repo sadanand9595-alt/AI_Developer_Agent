@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from core.planner import Planner
 
 
@@ -84,6 +86,56 @@ def main() -> None:
         )
 
     print("EMPTY REQUEST PROTECTION: PASS")
+
+    # Non-string request protection
+    invalid_result = planner.create_plan(123)
+
+    if invalid_result.is_success():
+        raise RuntimeError(
+            "Non-string request should be rejected."
+        )
+
+    if invalid_result.error.code != "INVALID_REQUEST":
+        raise RuntimeError(
+            "Unexpected non-string request error: "
+            f"{invalid_result.error.code}"
+        )
+
+    print("NON-STRING REQUEST PROTECTION: PASS")
+
+    # Non-string plan/step fields must not crash validate_plan
+    bad_plan_id = replace(plan, plan_id=123)
+
+    bad_plan_id_result = planner.validate_plan(bad_plan_id)
+
+    if bad_plan_id_result.is_success():
+        raise RuntimeError(
+            "Non-string plan ID should be rejected."
+        )
+
+    if bad_plan_id_result.error.code != "INVALID_PLAN_ID":
+        raise RuntimeError(
+            "Unexpected non-string plan ID error: "
+            f"{bad_plan_id_result.error.code}"
+        )
+
+    bad_step = replace(step, step_id=123)
+    bad_step_plan = replace(plan, steps=(bad_step,))
+
+    bad_step_result = planner.validate_plan(bad_step_plan)
+
+    if bad_step_result.is_success():
+        raise RuntimeError(
+            "Non-string step ID should be rejected."
+        )
+
+    if bad_step_result.error.code != "INVALID_STEP_ID":
+        raise RuntimeError(
+            "Unexpected non-string step ID error: "
+            f"{bad_step_result.error.code}"
+        )
+
+    print("NON-STRING FIELD VALIDATION: PASS")
 
     print()
     print("=" * 60)

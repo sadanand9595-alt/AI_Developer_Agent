@@ -55,6 +55,12 @@ class Planner:
     ) -> Result[ExecutionPlan]:
         """Create a basic execution plan from a request."""
 
+        if not isinstance(request, str):
+            return Result.fail(
+                "INVALID_REQUEST",
+                "Planner request must be a string.",
+            )
+
         normalized_request = request.strip()
 
         if not normalized_request:
@@ -92,13 +98,19 @@ class Planner:
     ) -> Result[ExecutionPlan]:
         """Validate an execution plan."""
 
-        if not plan.plan_id.strip():
+        if (
+            not isinstance(plan.plan_id, str)
+            or not plan.plan_id.strip()
+        ):
             return Result.fail(
                 "INVALID_PLAN_ID",
                 "Plan ID cannot be empty.",
             )
 
-        if not plan.request.strip():
+        if (
+            not isinstance(plan.request, str)
+            or not plan.request.strip()
+        ):
             return Result.fail(
                 "INVALID_PLAN_REQUEST",
                 "Plan request cannot be empty.",
@@ -113,19 +125,28 @@ class Planner:
         expected_order = 1
 
         for step in plan.steps:
-            if not step.step_id.strip():
+            if (
+                not isinstance(step.step_id, str)
+                or not step.step_id.strip()
+            ):
                 return Result.fail(
                     "INVALID_STEP_ID",
                     "Plan step ID cannot be empty.",
                 )
 
-            if not step.name.strip():
+            if (
+                not isinstance(step.name, str)
+                or not step.name.strip()
+            ):
                 return Result.fail(
                     "INVALID_STEP_NAME",
                     "Plan step name cannot be empty.",
                 )
 
-            if not step.action.strip():
+            if (
+                not isinstance(step.action, str)
+                or not step.action.strip()
+            ):
                 return Result.fail(
                     "INVALID_STEP_ACTION",
                     "Plan step action cannot be empty.",
