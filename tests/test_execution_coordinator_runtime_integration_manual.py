@@ -230,6 +230,59 @@ def main() -> None:
     print("FAILURE + RUNTIME CLEANUP: PASS")
 
     # -------------------------------------------------
+    # AUTO-COMPLETION VIA complete_step() (NO complete() CALL)
+    # -------------------------------------------------
+    #
+    # Reaching 100% through complete_step() alone (never calling
+    # complete()) must clean up the context runtime exactly like
+    # complete() does. Regression test for a bug where only the
+    # execution registry was cleaned up, permanently orphaning an
+    # active ExecutionContextRuntime.
+    # -------------------------------------------------
+
+    auto_complete_id = "integration-runtime-auto-complete-001"
+
+    coordinator.start(
+        auto_complete_id,
+        task_id="task-integration-auto-complete",
+        total_steps=1,
+    )
+
+    coordinator.start_step(
+        auto_complete_id,
+        "only-step",
+        task_id="task-integration-auto-complete",
+    )
+
+    auto_progress = coordinator.complete_step(
+        auto_complete_id,
+        "only-step",
+        task_id="task-integration-auto-complete",
+    )
+
+    if auto_progress.status != "completed":
+        raise RuntimeError(
+            "Single-step execution should auto-complete."
+        )
+
+    if coordinator.get_runtime(
+        auto_complete_id
+    ) is not None:
+        raise RuntimeError(
+            "Context runtime was not cleaned up after "
+            "complete_step() auto-completion."
+        )
+
+    if coordinator.is_registered(
+        auto_complete_id
+    ):
+        raise RuntimeError(
+            "Auto-completed execution remained registered."
+        )
+
+    print("AUTO-COMPLETION RUNTIME CLEANUP: PASS")
+
+    # -------------------------------------------------
     # ISOLATION
     # -------------------------------------------------
 

@@ -739,11 +739,20 @@ class ExecutionCoordinator:
             )
 
         # -----------------------------------------------------
-        # Registry cleanup when execution reaches 100%.
+        # Cleanup when execution reaches 100%.
+        #
+        # Completing the final step can auto-transition the
+        # execution to "completed" without complete() ever being
+        # called. Only unregistering from the execution registry
+        # here (and not the context runtime) leaves an active,
+        # never-stopped ExecutionContextRuntime permanently
+        # orphaned in _runtime_application for any caller using
+        # the step API directly instead of execute_plan()/
+        # complete(). Use the same cleanup as complete().
         # -----------------------------------------------------
 
         if progress.status == "completed":
-            self._registry_service.unregister(
+            self._cleanup_completed_runtime(
                 execution_id
             )
 
