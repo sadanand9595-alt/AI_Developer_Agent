@@ -64,6 +64,39 @@ def main() -> None:
             found.metadata_json,
         )
 
+    # -------------------------------------------------
+    # REFERENTIAL INTEGRITY: DANGLING FOREIGN KEY
+    # -------------------------------------------------
+    #
+    # An audit record referencing a user_id that does not exist
+    # must be rejected by the database, not silently persisted
+    # as an orphaned reference. Each check runs in its own
+    # session_scope() so the IntegrityError-triggered rollback
+    # cannot interfere with the other checks.
+    # -------------------------------------------------
+
+    try:
+        with session_scope() as dangling_session:
+            AuditRepository(dangling_session).create(
+                action="orphan_test",
+                category="testing",
+                status="success",
+                user_id="nonexistent-user-id-does-not-exist",
+            )
+    except Exception as exc:
+        if "FOREIGN KEY" not in str(exc).upper():
+            raise RuntimeError(
+                "Expected a foreign key integrity error, got: "
+                f"{type(exc).__name__}: {exc}"
+            )
+    else:
+        raise RuntimeError(
+            "Audit record with a dangling user_id should be "
+            "rejected."
+        )
+
+    print("DANGLING FOREIGN KEY PROTECTION: PASS")
+
 
 if __name__ == "__main__":
     main()
