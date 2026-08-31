@@ -27,6 +27,12 @@ class AgentRuntimeManager:
     ) -> Result[AgentRuntime]:
         """Return an existing runtime or create one."""
 
+        if not isinstance(agent_id, str):
+            return Result.fail(
+                "INVALID_AGENT_ID",
+                "Agent ID must be a string.",
+            )
+
         normalized_id = agent_id.strip()
 
         if not normalized_id:
@@ -57,6 +63,12 @@ class AgentRuntimeManager:
     ) -> Result[AgentRuntime]:
         """Return an existing runtime."""
 
+        if not isinstance(agent_id, str):
+            return Result.fail(
+                "INVALID_AGENT_ID",
+                "Agent ID must be a string.",
+            )
+
         normalized_id = agent_id.strip()
 
         if not normalized_id:
@@ -86,6 +98,12 @@ class AgentRuntimeManager:
         agent_id: str,
     ) -> Result[None]:
         """Remove an idle runtime from the manager."""
+
+        if not isinstance(agent_id, str):
+            return Result.fail(
+                "INVALID_AGENT_ID",
+                "Agent ID must be a string.",
+            )
 
         normalized_id = agent_id.strip()
 
@@ -130,6 +148,9 @@ class AgentRuntimeManager:
         agent_id: str,
     ) -> bool:
         """Return whether a runtime exists."""
+
+        if not isinstance(agent_id, str):
+            return False
 
         normalized_id = agent_id.strip()
 

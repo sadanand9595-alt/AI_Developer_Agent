@@ -129,6 +129,35 @@ def main() -> None:
             "All idle runtimes should have been cleared."
         )
 
+    for bad_id in (123, None, ["x"]):
+        for fn in (
+            manager.get_or_create,
+            manager.get,
+            manager.remove,
+        ):
+            result = fn(bad_id)
+
+            if result.is_success():
+                raise RuntimeError(
+                    f"Non-string agent_id {bad_id!r} should be "
+                    f"rejected by {fn.__name__}."
+                )
+
+            if result.error.code != "INVALID_AGENT_ID":
+                raise RuntimeError(
+                    "Unexpected error code for non-string "
+                    f"agent_id in {fn.__name__}: "
+                    f"{result.error.code}"
+                )
+
+        if manager.contains(bad_id):
+            raise RuntimeError(
+                f"Non-string agent_id {bad_id!r} should not "
+                "be reported as contained."
+            )
+
+    print("NON-STRING AGENT ID SAFETY: PASS")
+
     print("AGENT RUNTIME MANAGER: PASS")
 
 
