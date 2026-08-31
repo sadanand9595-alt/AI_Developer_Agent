@@ -187,6 +187,34 @@ def main() -> None:
             "Empty error message should be rejected."
         )
 
+    for bad_kwargs in (
+        {"execution_id": 123},
+    ):
+        try:
+            ExecutionResponse.success_response(**bad_kwargs)
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Non-string field {bad_kwargs!r} should be rejected."
+            )
+
+    for bad_kwargs in (
+        {"execution_id": 123, "code": "c", "message": "m"},
+        {"execution_id": "e1", "code": 123, "message": "m"},
+        {"execution_id": "e1", "code": "c", "message": 123},
+    ):
+        try:
+            ExecutionResponse.failure_response(**bad_kwargs)
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Non-string field {bad_kwargs!r} should be rejected."
+            )
+
+    print("NON-STRING FIELD SAFETY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION RESPONSE: PASS")

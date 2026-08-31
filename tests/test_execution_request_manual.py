@@ -125,6 +125,33 @@ def main() -> None:
 
     print("PERMISSION ISOLATION: PASS")
 
+    for bad_kwargs in (
+        {"request": 123},
+        {"request": "x", "workspace_root": 123},
+        {"request": "x", "working_directory": 123},
+    ):
+        try:
+            ExecutionRequest.create(**bad_kwargs)
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Non-string field {bad_kwargs!r} should be rejected."
+            )
+
+    valid_request = ExecutionRequest.create(request="valid")
+
+    try:
+        valid_request.with_metadata(123, "value")
+    except ValueError:
+        pass
+    else:
+        raise RuntimeError(
+            "Non-string metadata key should be rejected."
+        )
+
+    print("NON-STRING FIELD SAFETY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION REQUEST: PASS")

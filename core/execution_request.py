@@ -54,11 +54,26 @@ class ExecutionRequest:
     ) -> "ExecutionRequest":
         """Create a normalized execution request."""
 
+        if not isinstance(request, str):
+            raise ValueError(
+                "Execution request must be a string."
+            )
+
         normalized_request = request.strip()
 
         if not normalized_request:
             raise ValueError(
                 "Execution request cannot be empty."
+            )
+
+        if not isinstance(workspace_root, str):
+            raise ValueError(
+                "workspace_root must be a string."
+            )
+
+        if not isinstance(working_directory, str):
+            raise ValueError(
+                "working_directory must be a string."
             )
 
         normalized_workspace = (
@@ -104,6 +119,11 @@ class ExecutionRequest:
         value: object,
     ) -> "ExecutionRequest":
         """Return a new request with additional metadata."""
+
+        if not isinstance(key, str):
+            raise ValueError(
+                "Metadata key must be a string."
+            )
 
         normalized_key = key.strip()
 

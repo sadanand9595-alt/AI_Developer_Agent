@@ -52,6 +52,11 @@ class ExecutionResponse:
     ) -> "ExecutionResponse":
         """Create a successful execution response."""
 
+        if not isinstance(execution_id, str):
+            raise ValueError(
+                "Execution ID must be a string."
+            )
+
         normalized_execution_id = (
             execution_id.strip()
         )
@@ -85,6 +90,11 @@ class ExecutionResponse:
     ) -> "ExecutionResponse":
         """Create a failed execution response."""
 
+        if not isinstance(execution_id, str):
+            raise ValueError(
+                "Execution ID must be a string."
+            )
+
         normalized_execution_id = (
             execution_id.strip()
         )
@@ -94,11 +104,21 @@ class ExecutionResponse:
                 "Execution ID cannot be empty."
             )
 
+        if not isinstance(code, str):
+            raise ValueError(
+                "Error code must be a string."
+            )
+
         normalized_code = code.strip()
 
         if not normalized_code:
             raise ValueError(
                 "Error code cannot be empty."
+            )
+
+        if not isinstance(message, str):
+            raise ValueError(
+                "Error message must be a string."
             )
 
         normalized_message = message.strip()
