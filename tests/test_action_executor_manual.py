@@ -268,6 +268,42 @@ def main() -> None:
 
     print("NON-STRING ACTION SAFETY: PASS")
 
+    # Non-string step name must not crash context.add_stage_result().
+    for bad_name in (123, None, ["bad"]):
+        bad_name_step = PlanStep(
+            step_id="malformed-name-step",
+            name=bad_name,
+            description="Non-string name test.",
+            action="analyze",
+            order=1,
+        )
+
+        try:
+            bad_name_result = executor.execute_step(
+                bad_name_step,
+                context,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "Executor raised for non-string step name "
+                f"{bad_name!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if bad_name_result.is_success():
+            raise RuntimeError(
+                f"Non-string step name {bad_name!r} should "
+                "be rejected."
+            )
+
+        if bad_name_result.error.code != "INVALID_STEP_NAME":
+            raise RuntimeError(
+                "Unexpected error code for non-string step "
+                f"name {bad_name!r}: "
+                f"{bad_name_result.error.code}"
+            )
+
+    print("NON-STRING STEP NAME SAFETY: PASS")
+
     print()
     print("=" * 60)
     print("ACTION EXECUTOR: PASS")

@@ -66,6 +66,30 @@ class ActionExecutor:
             )
 
         # -----------------------------------------------------
+        # STEP NAME VALIDATION
+        # -----------------------------------------------------
+        #
+        # step.name is used as the stage-result key below, which
+        # requires a string. PlanStep is a plain dataclass with
+        # no field validation of its own, so a directly
+        # constructed step with a non-string name must be
+        # rejected here rather than crashing inside
+        # context.add_stage_result().
+        # -----------------------------------------------------
+
+        if not isinstance(
+            step.name,
+            str,
+        ):
+            return Result.fail(
+                "INVALID_STEP_NAME",
+                "Plan step name must be a string.",
+                details={
+                    "step_id": step.step_id,
+                },
+            )
+
+        # -----------------------------------------------------
         # ACTION VALIDATION
         # -----------------------------------------------------
 
