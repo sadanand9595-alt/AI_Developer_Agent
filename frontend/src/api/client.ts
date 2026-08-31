@@ -56,6 +56,18 @@ async function request<T>(
       (typeof body?.detail === "string"
         ? body.detail
         : "Request failed.");
+
+    // A 401 from any *protected* endpoint means the stored token
+    // is missing/invalid/expired -- broadcast so AuthContext can
+    // log out and ProtectedRoute can redirect, instead of leaving
+    // every panel stuck showing its own "could not load" error
+    // forever. /auth/login's own 401 (wrong password) is a normal
+    // form-validation outcome, not a session expiry, so it's
+    // excluded.
+    if (response.status === 401 && path !== "/auth/login") {
+      window.dispatchEvent(new CustomEvent("api:unauthorized"));
+    }
+
     throw new ApiError(response.status, message, body?.error?.code);
   }
 
