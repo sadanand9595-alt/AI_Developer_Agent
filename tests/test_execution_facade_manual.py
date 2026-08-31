@@ -321,6 +321,22 @@ def main() -> None:
 
     print("CLOSE: PASS")
 
+    # -------------------------------------------------
+    # INVALID SERVICE DEPENDENCY (CONSTRUCTOR VALIDATION)
+    # -------------------------------------------------
+
+    for bad_service in ("not-a-service", 123):
+        try:
+            ExecutionFacade(service=bad_service)
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid service {bad_service!r} should be rejected."
+            )
+
+    print("INVALID SERVICE DEPENDENCY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION FACADE: PASS")

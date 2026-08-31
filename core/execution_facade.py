@@ -26,6 +26,14 @@ class ExecutionFacade:
         self,
         service: ExecutionRuntimeService | None = None,
     ) -> None:
+        if service is not None and not isinstance(
+            service,
+            ExecutionRuntimeService,
+        ):
+            raise TypeError(
+                "Expected an ExecutionRuntimeService instance."
+            )
+
         self._service = (
             service
             if service is not None
