@@ -21,6 +21,14 @@ class ExecutionService:
         self,
         engine: ExecutionEngine,
     ) -> None:
+        if not isinstance(
+            engine,
+            ExecutionEngine,
+        ):
+            raise TypeError(
+                "Expected an ExecutionEngine instance."
+            )
+
         self._engine = engine
 
     def execute(

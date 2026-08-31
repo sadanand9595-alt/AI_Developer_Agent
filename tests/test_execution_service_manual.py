@@ -246,6 +246,18 @@ def main() -> None:
 
     print("INVALID REQUEST: PASS")
 
+    for bad_engine in ("not-an-engine", 123):
+        try:
+            ExecutionService(bad_engine)
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid engine {bad_engine!r} should be rejected."
+            )
+
+    print("INVALID ENGINE DEPENDENCY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION SERVICE: PASS")
