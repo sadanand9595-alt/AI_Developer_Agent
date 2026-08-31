@@ -53,6 +53,22 @@ class ExecutionEvent:
     ) -> "ExecutionEvent":
         """Create a validated execution event."""
 
+        if not isinstance(
+            event_type,
+            str,
+        ):
+            raise ValueError(
+                "Event type must be a string."
+            )
+
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            raise ValueError(
+                "Execution ID must be a string."
+            )
+
         normalized_type = event_type.strip()
         normalized_execution_id = execution_id.strip()
 
@@ -85,6 +101,12 @@ class ExecutionEvent:
         event_type: str,
     ) -> bool:
         """Return whether this event has the given type."""
+
+        if not isinstance(
+            event_type,
+            str,
+        ):
+            return False
 
         return self.event_type == event_type.strip()
 

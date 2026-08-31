@@ -244,6 +244,77 @@ def main() -> None:
             "ExecutionEvent should be immutable."
         )
 
+    # -------------------------------------------------
+    # NON-STRING EVENT_TYPE / EXECUTION_ID
+    # -------------------------------------------------
+    #
+    # create() is documented as producing a "validated
+    # execution event". A non-string event_type/execution_id
+    # must be rejected with a clear ValueError, never raise
+    # deep inside an unrelated .strip() call.
+    # -------------------------------------------------
+
+    for bad_value in (None, 123, ["not", "a", "string"]):
+        try:
+            ExecutionEvent.create(
+                event_type=bad_value,
+                execution_id="execution-invalid",
+            )
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "create() raised unexpected exception for "
+                f"event_type={bad_value!r}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"Non-string event_type {bad_value!r} should "
+                "be rejected."
+            )
+
+        try:
+            ExecutionEvent.create(
+                event_type=ExecutionEventType.STARTED,
+                execution_id=bad_value,
+            )
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "create() raised unexpected exception for "
+                f"execution_id={bad_value!r}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"Non-string execution_id {bad_value!r} should "
+                "be rejected."
+            )
+
+    print("NON-STRING EVENT_TYPE/EXECUTION_ID: PASS")
+
+    # -------------------------------------------------
+    # IS_TYPE WITH NON-STRING ARGUMENT
+    # -------------------------------------------------
+
+    for bad_value in (None, 123, ["not", "a", "string"]):
+        try:
+            result = started.is_type(bad_value)
+        except Exception as exc:
+            raise RuntimeError(
+                "is_type() raised unexpected exception for "
+                f"{bad_value!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if result is not False:
+            raise RuntimeError(
+                f"is_type() should return False for {bad_value!r}."
+            )
+
+    print("IS_TYPE NON-STRING SAFETY: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION EVENT: PASS")
