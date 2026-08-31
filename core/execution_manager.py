@@ -69,6 +69,14 @@ class ExecutionManager:
     ) -> ExecutionRecord:
         """Register a new running execution."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            raise ValueError(
+                "Execution ID must be a string."
+            )
+
         normalized_id = execution_id.strip()
 
         if not normalized_id:
@@ -102,6 +110,12 @@ class ExecutionManager:
         execution_id: str,
     ) -> ExecutionRecord | None:
         """Return an execution record if it exists."""
+
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return None
 
         normalized_id = execution_id.strip()
 
@@ -138,6 +152,22 @@ class ExecutionManager:
         metadata: dict[str, object] | None = None,
     ) -> ExecutionRecord:
         """Mark an execution as failed."""
+
+        if not isinstance(
+            error_code,
+            str,
+        ):
+            raise ValueError(
+                "Error code must be a string."
+            )
+
+        if not isinstance(
+            error_message,
+            str,
+        ):
+            raise ValueError(
+                "Error message must be a string."
+            )
 
         normalized_code = error_code.strip()
         normalized_message = error_message.strip()
@@ -236,6 +266,14 @@ class ExecutionManager:
         metadata: dict[str, object] | None = None,
     ) -> ExecutionRecord:
         """Transition an execution to a terminal state."""
+
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            raise ValueError(
+                "Execution ID must be a string."
+            )
 
         normalized_id = execution_id.strip()
 

@@ -265,6 +265,96 @@ def main() -> None:
     )
 
     # -------------------------------------------------
+    # NON-STRING ID/ERROR FIELDS (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+
+    for bad_value in (None, 123, ["not", "a", "string"]):
+        try:
+            manager.start(bad_value)
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "start raised unexpected exception for "
+                f"{bad_value!r}: {type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"start should reject execution_id={bad_value!r}."
+            )
+
+        if manager.get(bad_value) is not None:
+            raise RuntimeError(
+                f"get should return None for {bad_value!r}."
+            )
+
+        try:
+            manager.complete(bad_value)
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "complete raised unexpected exception for "
+                f"{bad_value!r}: {type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"complete should reject execution_id={bad_value!r}."
+            )
+
+    manager.start("execution-boundary")
+
+    for bad_value in (None, 123, ["not", "a", "string"]):
+        try:
+            manager.fail(
+                "execution-boundary",
+                error_code=bad_value,
+                error_message="msg",
+            )
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "fail raised unexpected exception for "
+                f"error_code={bad_value!r}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"fail should reject error_code={bad_value!r}."
+            )
+
+        try:
+            manager.fail(
+                "execution-boundary",
+                error_code="CODE",
+                error_message=bad_value,
+            )
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "fail raised unexpected exception for "
+                f"error_message={bad_value!r}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"fail should reject error_message={bad_value!r}."
+            )
+
+    # The rejected fail() calls must not have transitioned the
+    # execution out of its running state.
+    if manager.get("execution-boundary").status != "running":
+        raise RuntimeError(
+            "Rejected fail() calls must not mutate execution status."
+        )
+
+    manager.cancel("execution-boundary")
+
+    print("NON-STRING ID/ERROR FIELD SAFETY: PASS")
+
+    # -------------------------------------------------
     # CLEAR COMPLETED
     # -------------------------------------------------
 
