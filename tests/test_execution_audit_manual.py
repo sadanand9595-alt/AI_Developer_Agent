@@ -338,6 +338,75 @@ def main() -> None:
         )
 
     # -------------------------------------------------
+    # NON-STRING ID/TYPE (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+
+    for bad_value in (None, 123, ["not", "a", "string"]):
+        try:
+            audit.record_values(
+                execution_id=bad_value,
+                event_type="test.event",
+            )
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "record_values raised unexpected exception for "
+                f"execution_id={bad_value!r}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                "record_values should reject "
+                f"execution_id={bad_value!r}."
+            )
+
+        try:
+            audit.record_values(
+                execution_id="execution-non-string-type",
+                event_type=bad_value,
+            )
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "record_values raised unexpected exception for "
+                f"event_type={bad_value!r}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"record_values should reject event_type={bad_value!r}."
+            )
+
+        try:
+            by_execution = audit.list_by_execution(bad_value)
+            by_event_type = audit.list_by_event_type(bad_value)
+            by_task = audit.list_by_task(bad_value)
+        except Exception as exc:
+            raise RuntimeError(
+                "Query method raised unexpected exception for "
+                f"{bad_value!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if by_execution != ():
+            raise RuntimeError(
+                f"list_by_execution should return () for {bad_value!r}."
+            )
+
+        if by_event_type != ():
+            raise RuntimeError(
+                f"list_by_event_type should return () for {bad_value!r}."
+            )
+
+        if by_task != ():
+            raise RuntimeError(
+                f"list_by_task should return () for {bad_value!r}."
+            )
+
+    print("NON-STRING ID/TYPE SAFETY: PASS")
+
+    # -------------------------------------------------
     # CLEAR
     # -------------------------------------------------
 

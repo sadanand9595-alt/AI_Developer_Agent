@@ -84,6 +84,22 @@ class ExecutionAudit:
     ) -> ExecutionAuditRecord:
         """Record an audit entry directly from values."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            raise ValueError(
+                "Execution ID must be a string."
+            )
+
+        if not isinstance(
+            event_type,
+            str,
+        ):
+            raise ValueError(
+                "Event type must be a string."
+            )
+
         normalized_execution_id = (
             execution_id.strip()
         )
@@ -133,6 +149,12 @@ class ExecutionAudit:
     ) -> tuple[ExecutionAuditRecord, ...]:
         """Return audit records for one execution."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return ()
+
         normalized_id = execution_id.strip()
 
         if not normalized_id:
@@ -152,6 +174,12 @@ class ExecutionAudit:
     ) -> tuple[ExecutionAuditRecord, ...]:
         """Return audit records for an event type."""
 
+        if not isinstance(
+            event_type,
+            str,
+        ):
+            return ()
+
         normalized_type = event_type.strip()
 
         if not normalized_type:
@@ -170,6 +198,12 @@ class ExecutionAudit:
         task_id: str,
     ) -> tuple[ExecutionAuditRecord, ...]:
         """Return audit records for a task."""
+
+        if not isinstance(
+            task_id,
+            str,
+        ):
+            return ()
 
         normalized_task_id = task_id.strip()
 
