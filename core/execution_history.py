@@ -7,7 +7,7 @@ records for later inspection, auditing, and analytics.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from threading import RLock
 from typing import Any
@@ -76,6 +76,22 @@ class ExecutionHistory:
     ) -> ExecutionHistoryRecord:
         """Record a terminal execution snapshot."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            raise ValueError(
+                "Execution ID must be a string."
+            )
+
+        if not isinstance(
+            status,
+            str,
+        ):
+            raise ValueError(
+                "Status must be a string."
+            )
+
         normalized_id = execution_id.strip()
         normalized_status = status.strip()
 
@@ -121,7 +137,7 @@ class ExecutionHistory:
                 normalized_id
             ] = record
 
-            return record
+            return self._snapshot(record)
 
     def get(
         self,
@@ -129,14 +145,26 @@ class ExecutionHistory:
     ) -> ExecutionHistoryRecord | None:
         """Return a historical execution record."""
 
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return None
+
         normalized_id = execution_id.strip()
 
         if not normalized_id:
             return None
 
         with self._lock:
-            return self._records.get(
+            record = self._records.get(
                 normalized_id
+            )
+
+            return (
+                self._snapshot(record)
+                if record is not None
+                else None
             )
 
     def list_all(
@@ -146,7 +174,8 @@ class ExecutionHistory:
 
         with self._lock:
             return tuple(
-                self._records.values()
+                self._snapshot(record)
+                for record in self._records.values()
             )
 
     def list_by_status(
@@ -155,6 +184,12 @@ class ExecutionHistory:
     ) -> tuple[ExecutionHistoryRecord, ...]:
         """Return records matching a status."""
 
+        if not isinstance(
+            status,
+            str,
+        ):
+            return ()
+
         normalized_status = status.strip()
 
         if not normalized_status:
@@ -162,7 +197,7 @@ class ExecutionHistory:
 
         with self._lock:
             return tuple(
-                record
+                self._snapshot(record)
                 for record in self._records.values()
                 if record.status
                 == normalized_status
@@ -174,6 +209,12 @@ class ExecutionHistory:
     ) -> tuple[ExecutionHistoryRecord, ...]:
         """Return records belonging to a task."""
 
+        if not isinstance(
+            task_id,
+            str,
+        ):
+            return ()
+
         normalized_task_id = task_id.strip()
 
         if not normalized_task_id:
@@ -181,7 +222,7 @@ class ExecutionHistory:
 
         with self._lock:
             return tuple(
-                record
+                self._snapshot(record)
                 for record in self._records.values()
                 if record.task_id
                 == normalized_task_id
@@ -200,6 +241,12 @@ class ExecutionHistory:
         execution_id: str,
     ) -> bool:
         """Remove one historical record."""
+
+        if not isinstance(
+            execution_id,
+            str,
+        ):
+            return False
 
         normalized_id = execution_id.strip()
 
@@ -226,3 +273,22 @@ class ExecutionHistory:
             self._records.clear()
 
             return count
+
+    @staticmethod
+    def _snapshot(
+        record: ExecutionHistoryRecord,
+    ) -> ExecutionHistoryRecord:
+        """
+        Return a record safe for external consumption.
+
+        ``ExecutionHistoryRecord`` is a frozen dataclass, but its
+        ``metadata`` dict is still mutable in place. Without this,
+        any caller holding a returned record could mutate
+        ``record.metadata`` directly and silently corrupt the
+        internally stored "immutable-style historical snapshot".
+        """
+
+        return replace(
+            record,
+            metadata=dict(record.metadata),
+        )

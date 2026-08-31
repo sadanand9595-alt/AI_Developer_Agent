@@ -326,6 +326,115 @@ def main() -> None:
 
     print("CLEAR: PASS")
 
+    # -------------------------------------------------
+    # NON-STRING ID/KEY (PUBLIC BOUNDARY SAFETY)
+    # -------------------------------------------------
+
+    for bad_value in (None, 123, ["not", "a", "string"]):
+        try:
+            history.record(
+                bad_value,
+                status="completed",
+            )
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "record() raised unexpected exception for "
+                f"execution_id={bad_value!r}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"record() should reject execution_id={bad_value!r}."
+            )
+
+        try:
+            history.record(
+                "history-bad-status",
+                status=bad_value,
+            )
+        except ValueError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "record() raised unexpected exception for "
+                f"status={bad_value!r}: {type(exc).__name__}: {exc}"
+            )
+        else:
+            raise RuntimeError(
+                f"record() should reject status={bad_value!r}."
+            )
+
+        try:
+            get_result = history.get(bad_value)
+            status_result = history.list_by_status(bad_value)
+            task_result = history.list_by_task(bad_value)
+            remove_result = history.remove(bad_value)
+        except Exception as exc:
+            raise RuntimeError(
+                "Lookup method raised unexpected exception for "
+                f"{bad_value!r}: {type(exc).__name__}: {exc}"
+            )
+
+        if get_result is not None:
+            raise RuntimeError(
+                f"get should return None for {bad_value!r}."
+            )
+
+        if status_result != ():
+            raise RuntimeError(
+                f"list_by_status should return () for {bad_value!r}."
+            )
+
+        if task_result != ():
+            raise RuntimeError(
+                f"list_by_task should return () for {bad_value!r}."
+            )
+
+        if remove_result is not False:
+            raise RuntimeError(
+                f"remove should return False for {bad_value!r}."
+            )
+
+    print("NON-STRING ID/KEY SAFETY: PASS")
+
+    # -------------------------------------------------
+    # METADATA MUTATION ISOLATION
+    # -------------------------------------------------
+    #
+    # A caller mutating the metadata dict on a returned
+    # record must not corrupt the internally stored
+    # "immutable-style historical snapshot".
+    # -------------------------------------------------
+
+    isolation_history = ExecutionHistory()
+
+    returned = isolation_history.record(
+        "isolation-001",
+        status="completed",
+        metadata={"a": 1},
+    )
+
+    returned.metadata["a"] = "corrupted"
+    returned.metadata["injected"] = True
+
+    fetched = isolation_history.get("isolation-001")
+    fetched.metadata["also-corrupted"] = True
+
+    for listed in isolation_history.list_all():
+        listed.metadata["from-list-all"] = True
+
+    final = isolation_history.get("isolation-001")
+
+    if final.metadata != {"a": 1}:
+        raise RuntimeError(
+            "External mutation of a returned record's metadata "
+            f"leaked into the stored history: {final.metadata}"
+        )
+
+    print("METADATA MUTATION ISOLATION: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION HISTORY: PASS")
