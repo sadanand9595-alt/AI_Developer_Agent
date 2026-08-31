@@ -31,6 +31,30 @@ class ExecutionRuntime:
         event_bus: ExecutionEventBus | None = None,
         audit_service: ExecutionAuditService | None = None,
     ) -> None:
+        if manager is not None and not isinstance(
+            manager,
+            ExecutionManager,
+        ):
+            raise TypeError(
+                "Expected an ExecutionManager instance."
+            )
+
+        if event_bus is not None and not isinstance(
+            event_bus,
+            ExecutionEventBus,
+        ):
+            raise TypeError(
+                "Expected an ExecutionEventBus instance."
+            )
+
+        if audit_service is not None and not isinstance(
+            audit_service,
+            ExecutionAuditService,
+        ):
+            raise TypeError(
+                "Expected an ExecutionAuditService instance."
+            )
+
         self._manager = (
             manager
             if manager is not None
@@ -70,16 +94,25 @@ class ExecutionRuntime:
     ) -> ExecutionRecord:
         """Start a new execution runtime."""
 
-        record = self._manager.start(
-            execution_id,
-            task_id=task_id,
-            metadata=metadata,
-        )
+        # -----------------------------------------------------
+        # Start the monitor/tracker first: it validates
+        # total_steps and can fail for reasons the manager
+        # cannot (e.g. a negative total_steps). Starting the
+        # manager first would leave an orphaned "running"
+        # manager record with no tracker entry -- and no way
+        # to remove it -- if the monitor then failed.
+        # -----------------------------------------------------
 
         self._monitor.start(
             execution_id,
             task_id=task_id,
             total_steps=total_steps,
+        )
+
+        record = self._manager.start(
+            execution_id,
+            task_id=task_id,
+            metadata=metadata,
         )
 
         return record

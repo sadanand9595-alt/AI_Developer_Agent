@@ -464,6 +464,160 @@ def main() -> None:
 
     print("CLOSE: PASS")
 
+    # -------------------------------------------------
+    # INVALID DEPENDENCIES (CONSTRUCTOR VALIDATION)
+    # -------------------------------------------------
+
+    for bad_manager in ("not-a-manager", 123):
+        try:
+            ExecutionRuntime(manager=bad_manager)
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid manager {bad_manager!r} should be rejected."
+            )
+
+    for bad_bus in ("not-a-bus", 123):
+        try:
+            ExecutionRuntime(event_bus=bad_bus)
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid event_bus {bad_bus!r} should be rejected."
+            )
+
+    for bad_audit in ("not-an-audit-service", 123):
+        try:
+            ExecutionRuntime(audit_service=bad_audit)
+        except TypeError:
+            pass
+        else:
+            raise RuntimeError(
+                f"Invalid audit_service {bad_audit!r} should be "
+                "rejected."
+            )
+
+    print("INVALID DEPENDENCIES: PASS")
+
+    # -------------------------------------------------
+    # START ROLLBACK ON MONITOR FAILURE
+    # -------------------------------------------------
+    #
+    # A failed start() (invalid total_steps) must not leave
+    # an orphaned manager record with no tracker entry --
+    # the execution_id must remain usable afterward.
+    # -------------------------------------------------
+
+    rollback_runtime = ExecutionRuntime()
+
+    try:
+        rollback_runtime.start(
+            "execution-rollback",
+            total_steps=-1,
+        )
+    except ValueError:
+        pass
+    else:
+        raise RuntimeError(
+            "Negative total_steps should be rejected."
+        )
+
+    if rollback_runtime.get("execution-rollback") is not None:
+        raise RuntimeError(
+            "A failed start() must not leave an orphaned "
+            "manager record."
+        )
+
+    if (
+        rollback_runtime.get_progress("execution-rollback")
+        is not None
+    ):
+        raise RuntimeError(
+            "A failed start() must not leave an orphaned "
+            "tracker entry."
+        )
+
+    # The execution_id must be usable after the rollback.
+    retried = rollback_runtime.start(
+        "execution-rollback",
+        total_steps=1,
+    )
+
+    if retried.status != "running":
+        raise RuntimeError(
+            "Retrying start() after a rollback should succeed."
+        )
+
+    rollback_runtime.close()
+
+    print("START ROLLBACK ON MONITOR FAILURE: PASS")
+
+    # -------------------------------------------------
+    # ZERO-STEP COMPLETION: SINGLE COMPLETED EVENT
+    # -------------------------------------------------
+    #
+    # The zero-step completion path (complete() ->
+    # monitor.complete() -> tracker.complete()) must produce
+    # exactly one COMPLETED audit event and leave manager,
+    # tracker, and observer state consistent.
+    # -------------------------------------------------
+
+    zero_step_runtime = ExecutionRuntime()
+
+    zero_step_runtime.start(
+        "execution-zero-step",
+        total_steps=0,
+    )
+
+    zero_step_record = zero_step_runtime.complete(
+        "execution-zero-step"
+    )
+
+    zero_step_progress = zero_step_runtime.get_progress(
+        "execution-zero-step"
+    )
+
+    zero_step_observation = zero_step_runtime.get_observation(
+        "execution-zero-step"
+    )
+
+    if zero_step_record.status != "completed":
+        raise RuntimeError(
+            "Manager status should be completed."
+        )
+
+    if zero_step_progress.status != "completed":
+        raise RuntimeError(
+            "Tracker status should be completed."
+        )
+
+    if zero_step_observation.status != "completed":
+        raise RuntimeError(
+            "Observer status should be completed."
+        )
+
+    zero_step_audit = zero_step_runtime.get_audit(
+        "execution-zero-step"
+    )
+
+    completed_events = [
+        record
+        for record in zero_step_audit
+        if record.event_type == "execution.completed"
+    ]
+
+    if len(completed_events) != 1:
+        raise RuntimeError(
+            "Expected exactly one COMPLETED audit event, got "
+            f"{len(completed_events)}."
+        )
+
+    zero_step_runtime.close()
+
+    print("ZERO-STEP SINGLE COMPLETED EVENT: PASS")
+
     print()
     print("=" * 60)
     print("EXECUTION RUNTIME: PASS")
