@@ -122,6 +122,67 @@ def main() -> None:
             ),
         )
 
+        # -------------------------------------------------
+        # MISSING CONVERSATION PROTECTION
+        # -------------------------------------------------
+        #
+        # Creating a message against a conversation_id that
+        # does not exist must raise a clean, controlled
+        # ValueError -- not an uncaught database IntegrityError
+        # from the underlying foreign key constraint.
+        # -------------------------------------------------
+
+        try:
+            message_service.add_user_message(
+                conversation_id="nonexistent-conversation-id",
+                content="Should not be created.",
+            )
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(
+                "Message for a nonexistent conversation "
+                "should be rejected."
+            )
+
+        print("MISSING CONVERSATION PROTECTION: PASS")
+
+        # -------------------------------------------------
+        # ARCHIVED CONVERSATION PROTECTION
+        # -------------------------------------------------
+        #
+        # An archived conversation must not silently accept
+        # new messages.
+        # -------------------------------------------------
+
+        conversation_service.archive_conversation(
+            conversation.id
+        )
+
+        try:
+            message_service.add_user_message(
+                conversation_id=conversation.id,
+                content="Should not be added after archive.",
+            )
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(
+                "Message should not be addable to an "
+                "archived conversation."
+            )
+
+        if (
+            message_service.count_messages(conversation.id)
+            != 3
+        ):
+            raise RuntimeError(
+                "Archived conversation should not have "
+                "gained a new message."
+            )
+
+        print("ARCHIVED CONVERSATION PROTECTION: PASS")
+
 
 if __name__ == "__main__":
     main()

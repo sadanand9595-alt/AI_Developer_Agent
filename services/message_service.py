@@ -10,6 +10,9 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from database.models.message import Message, MessageRole
+from database.repositories.conversation_repository import (
+    ConversationRepository,
+)
 from database.repositories.message_repository import (
     MessageRepository,
 )
@@ -20,6 +23,9 @@ class MessageService:
 
     def __init__(self, session: Session) -> None:
         self._repository = MessageRepository(session)
+        self._conversation_repository = ConversationRepository(
+            session
+        )
 
     def add_user_message(
         self,
@@ -148,6 +154,23 @@ class MessageService:
         if not content.strip():
             raise ValueError(
                 "Message content cannot be empty."
+            )
+
+        conversation = (
+            self._conversation_repository.get_by_id(
+                conversation_id
+            )
+        )
+
+        if conversation is None:
+            raise ValueError(
+                "Conversation not found."
+            )
+
+        if conversation.is_archived:
+            raise ValueError(
+                "Cannot add a message to an archived "
+                "conversation."
             )
 
         return self._repository.create(
