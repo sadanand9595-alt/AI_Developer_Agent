@@ -12,6 +12,8 @@ from sqlalchemy import inspect, text
 from database.base import Base
 from database.connection import engine
 from database import models  # noqa: F401
+from database.repositories.task_repository import TaskRepository
+from database.session import session_scope
 
 
 def initialize_database() -> None:
@@ -24,6 +26,8 @@ def initialize_database() -> None:
     Base.metadata.create_all(bind=engine)
     _ensure_task_execution_id_column()
     _ensure_task_lease_columns()
+    _ensure_task_lease_owner_id_column()
+    _reconcile_expired_running_tasks()
 
 
 def _ensure_task_execution_id_column() -> None:
@@ -92,6 +96,51 @@ def _ensure_task_lease_columns() -> None:
                     "ALTER TABLE tasks ADD COLUMN last_heartbeat_at DATETIME"
                 )
             )
+
+
+def _ensure_task_lease_owner_id_column() -> None:
+    """Add Task.lease_owner_id when the existing database is missing it."""
+
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+
+    if "tasks" not in table_names:
+        return
+
+    columns = {
+        column["name"]
+        for column in inspector.get_columns("tasks")
+    }
+
+    if "lease_owner_id" not in columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE tasks ADD COLUMN lease_owner_id VARCHAR(255)"
+                )
+            )
+
+    indexes = {
+        index["name"]
+        for index in inspector.get_indexes("tasks")
+    }
+
+    if "ix_tasks_lease_owner_id" not in indexes:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS "
+                    "ix_tasks_lease_owner_id ON tasks (lease_owner_id)"
+                )
+            )
+
+
+def _reconcile_expired_running_tasks() -> None:
+    """Fail stale RUNNING tasks whose durable lease has already expired."""
+
+    with session_scope() as session:
+        repository = TaskRepository(session)
+        repository.reconcile_expired_running_tasks()
 
 
 def get_table_names() -> list[str]:

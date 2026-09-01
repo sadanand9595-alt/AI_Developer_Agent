@@ -124,11 +124,24 @@ class TaskRepository:
 
         return None
 
+    def _normalize_lease_owner_id(
+        self,
+        lease_owner_id: str | None,
+    ) -> str | None:
+        """Return a normalized lease owner ID or None."""
+
+        if isinstance(lease_owner_id, str):
+            normalized = lease_owner_id.strip()
+            return normalized or None
+
+        return None
+
     def mark_started(
         self,
         task: Task,
         execution_id: str | None = None,
         *,
+        lease_owner_id: str | None = None,
         lease_ttl_seconds: int = DEFAULT_LEASE_TTL_SECONDS,
     ) -> Task:
         """Mark a task as started atomically."""
@@ -147,6 +160,15 @@ class TaskRepository:
             or self._normalize_execution_id(task.execution_id)
             or str(uuid4())
         )
+        normalized_lease_owner_id = (
+            self._normalize_lease_owner_id(lease_owner_id)
+            or self._normalize_lease_owner_id(task.lease_owner_id)
+            or normalized_execution_id
+        )
+        if normalized_lease_owner_id != normalized_execution_id:
+            raise ValueError(
+                "lease_owner_id must match execution_id when starting a task."
+            )
 
         now = datetime.now(timezone.utc)
         lease_expires_at = now + timedelta(
@@ -167,6 +189,7 @@ class TaskRepository:
             .values(
                 status=TaskStatus.RUNNING.value,
                 execution_id=normalized_execution_id,
+                lease_owner_id=normalized_lease_owner_id,
                 started_at=now,
                 updated_at=now,
                 last_heartbeat_at=now,
@@ -185,6 +208,7 @@ class TaskRepository:
         task.status = TaskStatus.RUNNING.value
         task.started_at = now
         task.execution_id = normalized_execution_id
+        task.lease_owner_id = normalized_lease_owner_id
         task.updated_at = now
         task.last_heartbeat_at = now
         task.lease_expires_at = lease_expires_at
@@ -197,6 +221,7 @@ class TaskRepository:
         task: Task,
         execution_id: str | None = None,
         *,
+        lease_owner_id: str | None = None,
         lease_ttl_seconds: int = DEFAULT_LEASE_TTL_SECONDS,
     ) -> Task:
         """Extend the lease for the current execution owner."""
@@ -205,10 +230,22 @@ class TaskRepository:
             self._normalize_execution_id(execution_id)
             or self._normalize_execution_id(task.execution_id)
         )
+        normalized_lease_owner_id = (
+            self._normalize_lease_owner_id(lease_owner_id)
+            or self._normalize_lease_owner_id(task.lease_owner_id)
+        )
 
         if normalized_execution_id is None:
             raise ValueError(
                 "Task execution_id is required for heartbeat."
+            )
+        if normalized_lease_owner_id is None:
+            raise ValueError(
+                "Task lease_owner_id is required for heartbeat."
+            )
+        if normalized_lease_owner_id != normalized_execution_id:
+            raise ValueError(
+                "lease_owner_id must match execution_id for heartbeat."
             )
 
         if task.status != TaskStatus.RUNNING.value:
@@ -226,11 +263,16 @@ class TaskRepository:
             .where(Task.id == task.id)
             .where(Task.status == TaskStatus.RUNNING.value)
             .where(Task.execution_id == normalized_execution_id)
-            .values(
-                last_heartbeat_at=now,
-                lease_expires_at=lease_expires_at,
-                updated_at=now,
+        )
+        if normalized_lease_owner_id is not None:
+            statement = statement.where(
+                Task.lease_owner_id == normalized_lease_owner_id
             )
+
+        statement = statement.values(
+            last_heartbeat_at=now,
+            lease_expires_at=lease_expires_at,
+            updated_at=now,
         )
 
         result = self._session.execute(statement)
@@ -241,6 +283,7 @@ class TaskRepository:
                 f"{task.id}"
             )
 
+        task.lease_owner_id = normalized_lease_owner_id
         task.last_heartbeat_at = now
         task.lease_expires_at = lease_expires_at
         task.updated_at = now
@@ -253,6 +296,7 @@ class TaskRepository:
         task: Task,
         result: dict | None = None,
         execution_id: str | None = None,
+        lease_owner_id: str | None = None,
     ) -> Task:
         """Mark a task as completed only by the owning execution."""
 
@@ -260,10 +304,22 @@ class TaskRepository:
             self._normalize_execution_id(execution_id)
             or self._normalize_execution_id(task.execution_id)
         )
+        normalized_lease_owner_id = (
+            self._normalize_lease_owner_id(lease_owner_id)
+            or self._normalize_lease_owner_id(task.lease_owner_id)
+        )
 
         if normalized_execution_id is None:
             raise ValueError(
                 "Task execution_id is required before completion."
+            )
+        if normalized_lease_owner_id is None:
+            raise ValueError(
+                "Task lease_owner_id is required before completion."
+            )
+        if normalized_lease_owner_id != normalized_execution_id:
+            raise ValueError(
+                "lease_owner_id must match execution_id before completion."
             )
 
         now = datetime.now(timezone.utc)
@@ -273,14 +329,21 @@ class TaskRepository:
             .where(Task.id == task.id)
             .where(Task.status == TaskStatus.RUNNING.value)
             .where(Task.execution_id == normalized_execution_id)
-            .values(
-                status=TaskStatus.COMPLETED.value,
-                result_json=result,
-                completed_at=now,
-                updated_at=now,
-                lease_expires_at=None,
-                last_heartbeat_at=None,
+        )
+        if normalized_lease_owner_id is not None:
+            statement = statement.where(
+                Task.lease_owner_id == normalized_lease_owner_id
             )
+
+        statement = statement.values(
+            status=TaskStatus.COMPLETED.value,
+            result_json=result,
+            error_json=None,
+            completed_at=now,
+            updated_at=now,
+            lease_owner_id=None,
+            lease_expires_at=None,
+            last_heartbeat_at=None,
         )
 
         result_obj = self._session.execute(statement)
@@ -293,8 +356,10 @@ class TaskRepository:
 
         task.status = TaskStatus.COMPLETED.value
         task.result_json = result
+        task.error_json = None
         task.completed_at = now
         task.updated_at = now
+        task.lease_owner_id = None
         task.lease_expires_at = None
         task.last_heartbeat_at = None
         self._session.flush()
@@ -306,6 +371,7 @@ class TaskRepository:
         task: Task,
         error: dict | None = None,
         execution_id: str | None = None,
+        lease_owner_id: str | None = None,
     ) -> Task:
         """Mark a task as failed only by the owning execution."""
 
@@ -313,10 +379,22 @@ class TaskRepository:
             self._normalize_execution_id(execution_id)
             or self._normalize_execution_id(task.execution_id)
         )
+        normalized_lease_owner_id = (
+            self._normalize_lease_owner_id(lease_owner_id)
+            or self._normalize_lease_owner_id(task.lease_owner_id)
+        )
 
         if normalized_execution_id is None:
             raise ValueError(
                 "Task execution_id is required before failure."
+            )
+        if normalized_lease_owner_id is None:
+            raise ValueError(
+                "Task lease_owner_id is required before failure."
+            )
+        if normalized_lease_owner_id != normalized_execution_id:
+            raise ValueError(
+                "lease_owner_id must match execution_id before failure."
             )
 
         now = datetime.now(timezone.utc)
@@ -326,13 +404,20 @@ class TaskRepository:
             .where(Task.id == task.id)
             .where(Task.status == TaskStatus.RUNNING.value)
             .where(Task.execution_id == normalized_execution_id)
-            .values(
-                status=TaskStatus.FAILED.value,
-                error_json=error,
-                updated_at=now,
-                lease_expires_at=None,
-                last_heartbeat_at=None,
+        )
+        if normalized_lease_owner_id is not None:
+            statement = statement.where(
+                Task.lease_owner_id == normalized_lease_owner_id
             )
+
+        statement = statement.values(
+            status=TaskStatus.FAILED.value,
+            result_json=None,
+            error_json=error,
+            updated_at=now,
+            lease_owner_id=None,
+            lease_expires_at=None,
+            last_heartbeat_at=None,
         )
 
         result_obj = self._session.execute(statement)
@@ -344,13 +429,51 @@ class TaskRepository:
             )
 
         task.status = TaskStatus.FAILED.value
+        task.result_json = None
         task.error_json = error
         task.updated_at = now
+        task.lease_owner_id = None
         task.lease_expires_at = None
         task.last_heartbeat_at = None
         self._session.flush()
 
         return task
+
+    def reconcile_expired_running_tasks(
+        self,
+        *,
+        now: datetime | None = None,
+    ) -> int:
+        """Fail RUNNING tasks whose durable lease has expired."""
+
+        reference_time = now or datetime.now(timezone.utc)
+        error_payload = {
+            "code": "TASK_LEASE_EXPIRED",
+            "message": (
+                "Execution lease expired after process crash or restart; "
+                "the task must be retried."
+            ),
+        }
+
+        statement = (
+            update(Task)
+            .where(Task.status == TaskStatus.RUNNING.value)
+            .where(Task.lease_expires_at.is_not(None))
+            .where(Task.lease_expires_at <= reference_time)
+            .values(
+                status=TaskStatus.FAILED.value,
+                result_json=None,
+                error_json=error_payload,
+                updated_at=reference_time,
+                lease_owner_id=None,
+                lease_expires_at=None,
+                last_heartbeat_at=None,
+            )
+        )
+
+        result = self._session.execute(statement)
+        self._session.flush()
+        return int(result.rowcount or 0)
 
     def increment_retry(
         self,

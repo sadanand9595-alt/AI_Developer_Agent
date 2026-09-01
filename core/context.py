@@ -40,6 +40,7 @@ class ExecutionContext:
     execution_id: ExecutionId = field(
         default_factory=lambda: ExecutionId(str(uuid4()))
     )
+    lease_owner_id: str | None = None
 
     workspace_root: str = "."
     working_directory: str = "."
@@ -66,6 +67,7 @@ class ExecutionContext:
         conversation_id: str | None = None,
         agent_id: str | None = None,
         execution_id: str | None = None,
+        lease_owner_id: str | None = None,
         workspace_root: str = ".",
         working_directory: str = ".",
         permissions: set[str] | frozenset[str] | None = None,
@@ -112,6 +114,26 @@ class ExecutionContext:
             if isinstance(execution_id, str)
             else None
         )
+        normalized_lease_owner_id = (
+            lease_owner_id.strip()
+            if isinstance(lease_owner_id, str)
+            else None
+        )
+        resolved_execution_id = (
+            normalized_execution_id
+            if normalized_execution_id
+            else str(uuid4())
+        )
+        resolved_lease_owner_id = (
+            normalized_lease_owner_id
+            if normalized_lease_owner_id
+            else resolved_execution_id
+        )
+
+        if resolved_lease_owner_id != resolved_execution_id:
+            raise ValueError(
+                "lease_owner_id must match execution_id in ExecutionContext."
+            )
 
         return cls(
             user_id=UserId(user_id),
@@ -131,11 +153,8 @@ class ExecutionContext:
                 if agent_id
                 else None
             ),
-            execution_id=(
-                ExecutionId(normalized_execution_id)
-                if normalized_execution_id
-                else ExecutionId(str(uuid4()))
-            ),
+            execution_id=ExecutionId(resolved_execution_id),
+            lease_owner_id=resolved_lease_owner_id,
             workspace_root=workspace_root,
             working_directory=working_directory,
             permissions=frozenset(
@@ -175,6 +194,7 @@ class ExecutionContext:
             conversation_id=self.conversation_id,
             agent_id=AgentId(agent_id),
             execution_id=self.execution_id,
+            lease_owner_id=self.lease_owner_id,
             workspace_root=self.workspace_root,
             working_directory=self.working_directory,
             permissions=self.permissions,
@@ -195,6 +215,7 @@ class ExecutionContext:
             conversation_id=self.conversation_id,
             agent_id=self.agent_id,
             execution_id=self.execution_id,
+            lease_owner_id=self.lease_owner_id,
             workspace_root=self.workspace_root,
             working_directory=working_directory,
             permissions=self.permissions,

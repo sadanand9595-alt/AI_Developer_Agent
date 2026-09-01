@@ -8,6 +8,7 @@ execution result persistence.
 from __future__ import annotations
 
 from typing import Callable, TypeVar
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
@@ -109,11 +110,13 @@ class ExecutionOrchestrator:
                 details=runtime_result.error.details,
             )
 
-        execution_id = str(__import__("uuid").uuid4())
+        execution_id = str(uuid4())
+        lease_owner_id = execution_id
 
         started = self._state_service.mark_started(
             task,
             execution_id,
+            lease_owner_id=lease_owner_id,
         )
 
         if started.is_failure():
@@ -131,6 +134,7 @@ class ExecutionOrchestrator:
             session_id=session_id,
             conversation_id=conversation_id,
             execution_id=execution_id,
+            lease_owner_id=lease_owner_id,
             workspace_root=workspace_root,
             working_directory=working_directory,
             permissions=permissions,
@@ -145,6 +149,7 @@ class ExecutionOrchestrator:
                     "message": execution_result.error.message,
                 },
                 execution_id=execution_id,
+                lease_owner_id=lease_owner_id,
             )
 
             return Result.fail(
@@ -163,6 +168,7 @@ class ExecutionOrchestrator:
                     "message": execution.result.error.message,
                 },
                 execution_id=execution_id,
+                lease_owner_id=lease_owner_id,
             )
 
             return Result.fail(
@@ -182,6 +188,7 @@ class ExecutionOrchestrator:
                 "result": execution.result.data,
             },
             execution_id=execution_id,
+            lease_owner_id=lease_owner_id,
         )
 
         if completed.is_failure():

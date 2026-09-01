@@ -63,6 +63,7 @@ class TaskService:
         self,
         task_id: str,
         execution_id: str | None = None,
+        lease_owner_id: str | None = None,
     ) -> Task:
         """Move a task into the running state."""
 
@@ -71,6 +72,7 @@ class TaskService:
         self._repository.mark_started(
             task,
             execution_id,
+            lease_owner_id=lease_owner_id,
         )
 
         return task
@@ -80,6 +82,7 @@ class TaskService:
         task_id: str,
         result: dict | None = None,
         execution_id: str | None = None,
+        lease_owner_id: str | None = None,
     ) -> Task:
         """Mark a task as successfully completed."""
 
@@ -89,6 +92,7 @@ class TaskService:
             task,
             result,
             execution_id=execution_id,
+            lease_owner_id=lease_owner_id,
         )
 
         return task
@@ -98,6 +102,7 @@ class TaskService:
         task_id: str,
         error: dict | None = None,
         execution_id: str | None = None,
+        lease_owner_id: str | None = None,
     ) -> Task:
         """Mark a task as failed."""
 
@@ -107,6 +112,7 @@ class TaskService:
             task,
             error,
             execution_id=execution_id,
+            lease_owner_id=lease_owner_id,
         )
 
         return task

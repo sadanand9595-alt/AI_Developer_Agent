@@ -320,12 +320,19 @@ def test_task_start_persists_lease_metadata() -> None:
 
         repository = TaskRepository(session)
         execution_id = f"lease-start-{uuid4()}"
-        repository.mark_started(task, execution_id, lease_ttl_seconds=60)
+        lease_owner_id = execution_id
+        repository.mark_started(
+            task,
+            execution_id,
+            lease_owner_id=lease_owner_id,
+            lease_ttl_seconds=60,
+        )
 
         reloaded = repository.get_by_id(task.id)
         assert reloaded is not None
         assert reloaded.status == "running"
         assert reloaded.execution_id == execution_id
+        assert reloaded.lease_owner_id == execution_id
         assert reloaded.last_heartbeat_at is not None
         assert reloaded.lease_expires_at is not None
         assert reloaded.lease_expires_at > reloaded.last_heartbeat_at
@@ -349,7 +356,13 @@ def test_heartbeat_enforces_execution_ownership() -> None:
 
         repository = TaskRepository(session)
         execution_id = f"lease-owner-{uuid4()}"
-        repository.mark_started(task, execution_id, lease_ttl_seconds=60)
+        lease_owner_id = execution_id
+        repository.mark_started(
+            task,
+            execution_id,
+            lease_owner_id=lease_owner_id,
+            lease_ttl_seconds=60,
+        )
 
         original_heartbeat = task.last_heartbeat_at
         original_expiration = task.lease_expires_at
@@ -359,7 +372,8 @@ def test_heartbeat_enforces_execution_ownership() -> None:
         with pytest.raises(ValueError):
             repository.heartbeat(
                 task,
-                "different-owner",
+                execution_id,
+                lease_owner_id=f"{execution_id}-different",
                 lease_ttl_seconds=120,
             )
 
@@ -369,7 +383,12 @@ def test_heartbeat_enforces_execution_ownership() -> None:
         assert reloaded.last_heartbeat_at == original_heartbeat
         assert reloaded.lease_expires_at == original_expiration
 
-        repository.heartbeat(task, execution_id, lease_ttl_seconds=120)
+        repository.heartbeat(
+            task,
+            execution_id,
+            lease_owner_id=lease_owner_id,
+            lease_ttl_seconds=120,
+        )
 
         reloaded = repository.get_by_id(task.id)
         assert reloaded is not None
@@ -396,17 +415,25 @@ def test_lease_is_cleared_on_terminal_task_state() -> None:
 
         repository = TaskRepository(session)
         execution_id = f"lease-success-{uuid4()}"
-        repository.mark_started(task, execution_id, lease_ttl_seconds=60)
+        lease_owner_id = execution_id
+        repository.mark_started(
+            task,
+            execution_id,
+            lease_owner_id=lease_owner_id,
+            lease_ttl_seconds=60,
+        )
 
         repository.mark_completed(
             task,
             {"message": "lease cleared on success"},
             execution_id=execution_id,
+            lease_owner_id=lease_owner_id,
         )
 
         reloaded = repository.get_by_id(task.id)
         assert reloaded is not None
         assert reloaded.status == "completed"
+        assert reloaded.lease_owner_id is None
         assert reloaded.lease_expires_at is None
         assert reloaded.last_heartbeat_at is None
 
@@ -416,17 +443,25 @@ def test_lease_is_cleared_on_terminal_task_state() -> None:
             description="Testing lease cleanup on failure.",
         )
         failed_execution_id = f"lease-failure-{uuid4()}"
-        repository.mark_started(failed_task, failed_execution_id, lease_ttl_seconds=60)
+        failed_owner_id = failed_execution_id
+        repository.mark_started(
+            failed_task,
+            failed_execution_id,
+            lease_owner_id=failed_owner_id,
+            lease_ttl_seconds=60,
+        )
 
         repository.mark_failed(
             failed_task,
             {"code": "LEASE_FAILURE_TEST", "message": "lease cleared on failure"},
             execution_id=failed_execution_id,
+            lease_owner_id=failed_owner_id,
         )
 
         failed_reloaded = repository.get_by_id(failed_task.id)
         assert failed_reloaded is not None
         assert failed_reloaded.status == "failed"
+        assert failed_reloaded.lease_owner_id is None
         assert failed_reloaded.lease_expires_at is None
         assert failed_reloaded.last_heartbeat_at is None
 
@@ -456,9 +491,14 @@ def test_task_start_is_atomic_across_concurrent_workers() -> None:
             task_row = repository.get_by_id(task.id)
             assert task_row is not None
             execution_id = f"concurrent-{name}-{uuid4()}"
+            lease_owner_id = execution_id
             barrier.wait()
             try:
-                repository.mark_started(task_row, execution_id)
+                repository.mark_started(
+                    task_row,
+                    execution_id,
+                    lease_owner_id=lease_owner_id,
+                )
                 successes.append(execution_id)
             except ValueError:
                 pass
@@ -477,6 +517,55 @@ def test_task_start_is_atomic_across_concurrent_workers() -> None:
         assert refreshed.execution_id is not None
         assert len(successes) == 1
         assert refreshed.execution_id in successes
+
+
+def test_reconcile_expired_running_task_marks_it_failed() -> None:
+    with session_scope() as session:
+        user_service = UserService(session)
+        user = user_service.create_user(
+            email=f"reconcile-expired-{uuid4()}@example.com",
+            name="Expired Lease User",
+            password_hash="test-hash-not-used",
+        )
+
+        task_service = TaskService(session)
+        task = task_service.create_task(
+            user_id=user.id,
+            title="Expired Lease Task",
+            description="Testing stale running task recovery.",
+        )
+
+        repository = TaskRepository(session)
+        execution_id = f"expired-{uuid4()}"
+        lease_owner_id = execution_id
+        repository.mark_started(
+            task,
+            execution_id,
+            lease_owner_id=lease_owner_id,
+            lease_ttl_seconds=0,
+        )
+
+        reloaded = repository.get_by_id(task.id)
+        assert reloaded is not None
+        reloaded.lease_expires_at = reloaded.last_heartbeat_at
+        session.flush()
+
+        assert repository.reconcile_expired_running_tasks() == 1
+
+        recovered = repository.get_by_id(task.id)
+        assert recovered is not None
+        assert recovered.status == "failed"
+        assert recovered.execution_id == execution_id
+        assert recovered.error_json == {
+            "code": "TASK_LEASE_EXPIRED",
+            "message": (
+                "Execution lease expired after process crash or restart; "
+                "the task must be retried."
+            ),
+        }
+        assert recovered.lease_owner_id is None
+
+        assert repository.reconcile_expired_running_tasks() == 0
 
 
 if __name__ == "__main__":

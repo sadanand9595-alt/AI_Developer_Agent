@@ -23,6 +23,7 @@ class ExecutionStateService:
         task: Task,
         result: dict | None = None,
         execution_id: str | None = None,
+        lease_owner_id: str | None = None,
     ) -> Result[Task]:
         """Mark a task as completed."""
 
@@ -31,6 +32,7 @@ class ExecutionStateService:
                 task,
                 result,
                 execution_id=execution_id,
+                lease_owner_id=lease_owner_id,
             )
 
             return Result.ok(task)
@@ -50,6 +52,7 @@ class ExecutionStateService:
         task: Task,
         error: dict | None = None,
         execution_id: str | None = None,
+        lease_owner_id: str | None = None,
     ) -> Result[Task]:
         """Mark a task as failed."""
 
@@ -58,6 +61,7 @@ class ExecutionStateService:
                 task,
                 error,
                 execution_id=execution_id,
+                lease_owner_id=lease_owner_id,
             )
 
             return Result.ok(task)
@@ -96,6 +100,7 @@ class ExecutionStateService:
         self,
         task: Task,
         execution_id: str | None = None,
+        lease_owner_id: str | None = None,
     ) -> Result[Task]:
         """Mark a task as started."""
 
@@ -103,6 +108,7 @@ class ExecutionStateService:
             self._repository.mark_started(
                 task,
                 execution_id,
+                lease_owner_id=lease_owner_id,
             )
 
             return Result.ok(task)

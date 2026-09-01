@@ -7,6 +7,7 @@ immutable ExecutionContext.
 
 from __future__ import annotations
 
+import threading
 from typing import Callable, TypeVar
 
 from sqlalchemy.orm import Session
@@ -49,6 +50,7 @@ class ExecutionService:
         session_id: str | None = None,
         conversation_id: str | None = None,
         execution_id: str | None = None,
+        lease_owner_id: str | None = None,
         workspace_root: str = ".",
         working_directory: str = ".",
         permissions: set[str] | frozenset[str] | None = None,
@@ -84,13 +86,29 @@ class ExecutionService:
                 details=runtime_result.error.details,
             )
 
+        resolved_execution_id = execution_id or str(task.execution_id or "")
+        if not resolved_execution_id:
+            resolved_execution_id = f"exec-{task_id}-{threading.get_ident()}"
+        resolved_lease_owner_id = lease_owner_id or resolved_execution_id
+        if resolved_lease_owner_id != resolved_execution_id:
+            return Result.fail(
+                "TASK_LEASE_OWNER_MISMATCH",
+                "lease_owner_id must match execution_id.",
+                details={
+                    "task_id": task_id,
+                    "execution_id": resolved_execution_id,
+                    "lease_owner_id": resolved_lease_owner_id,
+                },
+            )
+
         context = ExecutionContext.create(
             user_id=user_id,
             task_id=task_id,
             session_id=session_id,
             conversation_id=conversation_id,
             agent_id=agent_id,
-            execution_id=execution_id,
+            execution_id=resolved_execution_id,
+            lease_owner_id=resolved_lease_owner_id,
             workspace_root=workspace_root,
             working_directory=working_directory,
             permissions=permissions,
@@ -98,11 +116,35 @@ class ExecutionService:
         )
 
         runtime = runtime_result.require_data()
+        heartbeat_stop = threading.Event()
+        heartbeat_thread = None
 
-        execution = runtime.execute(
-            context=context,
-            operation=operation,
+        def _heartbeat_loop() -> None:
+            while not heartbeat_stop.wait(30):
+                try:
+                    self._task_repository.heartbeat(
+                        task,
+                        resolved_execution_id,
+                        lease_owner_id=resolved_lease_owner_id,
+                    )
+                except Exception:
+                    break
+
+        heartbeat_thread = threading.Thread(
+            target=_heartbeat_loop,
+            daemon=True,
         )
+        heartbeat_thread.start()
+
+        try:
+            execution = runtime.execute(
+                context=context,
+                operation=operation,
+            )
+        finally:
+            heartbeat_stop.set()
+            if heartbeat_thread is not None:
+                heartbeat_thread.join(timeout=5)
 
         if execution.result.is_failure():
             return Result.fail(

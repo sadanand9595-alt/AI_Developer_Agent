@@ -77,6 +77,12 @@ class Task(Base):
         nullable=True,
     )
 
+    lease_owner_id: Mapped[str | None] = mapped_column(
+        String(255),
+        index=True,
+        nullable=True,
+    )
+
     lease_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -143,6 +149,7 @@ class Task(Base):
         self,
         execution_id: str | None = None,
         *,
+        lease_owner_id: str | None = None,
         lease_ttl_seconds: int = 300,
     ) -> None:
         """Mark the task as running."""
@@ -167,10 +174,23 @@ class Task(Base):
         if normalized_execution_id is None:
             normalized_execution_id = str(uuid4())
 
+        normalized_lease_owner_id = (
+            lease_owner_id.strip()
+            if isinstance(lease_owner_id, str)
+            else self.lease_owner_id
+        )
+        if normalized_lease_owner_id is None:
+            normalized_lease_owner_id = normalized_execution_id
+        if normalized_lease_owner_id != normalized_execution_id:
+            raise ValueError(
+                "lease_owner_id must match execution_id for task start."
+            )
+
         self.status = TaskStatus.RUNNING.value
         self.started_at = now
         self.updated_at = now
         self.execution_id = normalized_execution_id
+        self.lease_owner_id = normalized_lease_owner_id
         self.last_heartbeat_at = now
         self.lease_expires_at = now + timedelta(
             seconds=max(0, int(lease_ttl_seconds))
@@ -195,8 +215,10 @@ class Task(Base):
 
         self.status = TaskStatus.COMPLETED.value
         self.result_json = result
+        self.error_json = None
         self.completed_at = now
         self.updated_at = now
+        self.lease_owner_id = None
         self.lease_expires_at = None
         self.last_heartbeat_at = None
 
@@ -216,8 +238,10 @@ class Task(Base):
             )
 
         self.status = TaskStatus.FAILED.value
+        self.result_json = None
         self.error_json = error
         self.updated_at = datetime.now(timezone.utc)
+        self.lease_owner_id = None
         self.lease_expires_at = None
         self.last_heartbeat_at = None
 
