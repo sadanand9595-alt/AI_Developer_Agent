@@ -480,5 +480,119 @@ def main() -> None:
     print("=" * 60)
 
 
+def test_zero_step_execution_plan_succeeds() -> None:
+    coordinator = ExecutionCoordinator()
+    plan = ExecutionPlan(
+        plan_id="zero-step-plan",
+        request="zero-step-request",
+        steps=(),
+        metadata={},
+    )
+    context = PipelineContext(
+        execution_id="coordinator-execution-zero",
+        task_id="coordinator-task-zero",
+    )
+
+    result = coordinator.execute_plan(plan=plan, context=context)
+
+    assert result.is_success()
+    assert coordinator.get("coordinator-execution-zero") is not None
+    assert coordinator.get("coordinator-execution-zero").status == "completed"
+    assert coordinator.is_registered("coordinator-execution-zero") is False
+
+
+def test_duplicate_execution_id_rejected_for_active_and_terminal_states() -> None:
+    coordinator = ExecutionCoordinator()
+    plan = ExecutionPlan(
+        plan_id="duplicate-analyzer",
+        request="duplicate-request",
+        steps=(),
+        metadata={},
+    )
+
+    active_context = PipelineContext(
+        execution_id="dup-active",
+        task_id="dup-active-task",
+    )
+    coordinator.start(
+        "dup-active",
+        task_id="dup-active-task",
+        total_steps=1,
+    )
+    active_result = coordinator.execute_plan(
+        plan=plan,
+        context=active_context,
+    )
+    assert active_result.is_failure()
+    assert active_result.error.code == "EXECUTION_ALREADY_REGISTERED"
+
+    completed_context = PipelineContext(
+        execution_id="dup-completed",
+        task_id="dup-completed-task",
+    )
+    coordinator.execute_plan(
+        plan=ExecutionPlan(
+            plan_id="complete-duplicate-plan",
+            request="complete-duplicate-request",
+            steps=(),
+            metadata={},
+        ),
+        context=completed_context,
+    )
+    completed_result = coordinator.execute_plan(
+        plan=ExecutionPlan(
+            plan_id="complete-duplicate-plan",
+            request="complete-duplicate-request",
+            steps=(),
+            metadata={},
+        ),
+        context=completed_context,
+    )
+    assert completed_result.is_failure()
+    assert completed_result.error.code == "EXECUTION_ALREADY_REGISTERED"
+
+    failed_context = PipelineContext(
+        execution_id="dup-failed",
+        task_id="dup-failed-task",
+    )
+    coordinator.start("dup-failed", task_id="dup-failed-task", total_steps=1)
+    coordinator.fail(
+        "dup-failed",
+        error_code="FAIL_DUP",
+        error_message="Should fail and prevent reuse.",
+    )
+    failed_result = coordinator.execute_plan(
+        plan=ExecutionPlan(
+            plan_id="failed-duplicate-plan",
+            request="failed-duplicate-request",
+            steps=(),
+            metadata={},
+        ),
+        context=failed_context,
+    )
+    assert failed_result.is_failure()
+    assert failed_result.error.code == "EXECUTION_ALREADY_REGISTERED"
+
+    cancelled_context = PipelineContext(
+        execution_id="dup-cancelled",
+        task_id="dup-cancelled-task",
+    )
+    coordinator.start("dup-cancelled", task_id="dup-cancelled-task", total_steps=1)
+    coordinator.cancel("dup-cancelled")
+    cancelled_result = coordinator.execute_plan(
+        plan=ExecutionPlan(
+            plan_id="cancelled-duplicate-plan",
+            request="cancelled-duplicate-request",
+            steps=(),
+            metadata={},
+        ),
+        context=cancelled_context,
+    )
+    assert cancelled_result.is_failure()
+    assert cancelled_result.error.code == "EXECUTION_ALREADY_REGISTERED"
+
+    coordinator.close()
+
+
 if __name__ == "__main__":
     main()

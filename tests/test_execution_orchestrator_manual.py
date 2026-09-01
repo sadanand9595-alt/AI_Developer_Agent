@@ -115,5 +115,128 @@ def main() -> None:
         print("=" * 60)
 
 
+def test_execution_orchestrator_updates_task_status_to_completed() -> None:
+    with session_scope() as session:
+        user_service = UserService(session)
+        user = user_service.create_user(
+            email=f"orchestrator-success-{uuid4()}@example.com",
+            name="Execution Orchestrator Success User",
+            password_hash="test-hash-not-used",
+        )
+
+        task_service = TaskService(session)
+        task = task_service.create_task(
+            user_id=user.id,
+            title="Orchestrator Success Task",
+            description="Testing successful execution orchestration.",
+        )
+
+        assert task.status == "pending"
+
+        agent_service = AgentService(session)
+        agent = agent_service.register_agent(
+            name=f"Orchestrator Success Agent {uuid4()}",
+            agent_type="coding",
+            description="Testing success execution orchestration.",
+            model_provider="local",
+            model_name="test-model",
+            capabilities=["execution", "testing"],
+        )
+
+        orchestrator = ExecutionOrchestrator(session)
+
+        def operation(context):
+            reloaded = task_service.get_task(task.id)
+            assert reloaded is not None
+            assert reloaded.status == "running"
+            return Result.ok(
+                {
+                    "message": "Orchestrated execution completed.",
+                    "task_id": str(context.task_id),
+                    "agent_id": str(context.agent_id),
+                }
+            )
+
+        result = orchestrator.execute(
+            task_id=task.id,
+            user_id=user.id,
+            agent_id=agent.id,
+            operation=operation,
+            workspace_root="D:\\AI_COMMAND_CENTER",
+            working_directory="D:\\AI_COMMAND_CENTER",
+            permissions={"read", "write", "execute"},
+        )
+
+        assert result.is_success()
+
+        reloaded = task_service.get_task(task.id)
+        assert reloaded is not None
+        assert reloaded.status == "completed"
+        assert reloaded.result_json["message"] == (
+            "Orchestrated execution completed."
+        )
+
+
+def test_execution_orchestrator_updates_task_status_to_failed() -> None:
+    with session_scope() as session:
+        user_service = UserService(session)
+        user = user_service.create_user(
+            email=f"orchestrator-failure-{uuid4()}@example.com",
+            name="Execution Orchestrator Failure User",
+            password_hash="test-hash-not-used",
+        )
+
+        task_service = TaskService(session)
+        task = task_service.create_task(
+            user_id=user.id,
+            title="Orchestrator Failure Task",
+            description="Testing failed execution orchestration.",
+        )
+
+        assert task.status == "pending"
+
+        agent_service = AgentService(session)
+        agent = agent_service.register_agent(
+            name=f"Orchestrator Failure Agent {uuid4()}",
+            agent_type="coding",
+            description="Testing failure execution orchestration.",
+            model_provider="local",
+            model_name="test-model",
+            capabilities=["execution", "testing"],
+        )
+
+        orchestrator = ExecutionOrchestrator(session)
+
+        def operation(context):
+            reloaded = task_service.get_task(task.id)
+            assert reloaded is not None
+            assert reloaded.status == "running"
+            return Result.fail(
+                "EXPLICIT_FAILURE",
+                "expected failure",
+            )
+
+        result = orchestrator.execute(
+            task_id=task.id,
+            user_id=user.id,
+            agent_id=agent.id,
+            operation=operation,
+            workspace_root="D:\\AI_COMMAND_CENTER",
+            working_directory="D:\\AI_COMMAND_CENTER",
+            permissions={"read", "write", "execute"},
+        )
+
+        assert result.is_failure()
+        assert result.error.code == "EXPLICIT_FAILURE"
+
+        reloaded = task_service.get_task(task.id)
+        assert reloaded is not None
+        assert reloaded.status == "failed"
+        assert reloaded.error_json == {
+            "code": "EXPLICIT_FAILURE",
+            "message": "expected failure",
+        }
+
+
 if __name__ == "__main__":
     main()

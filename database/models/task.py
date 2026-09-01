@@ -126,9 +126,13 @@ class Task(Base):
     def mark_started(self) -> None:
         """Mark the task as running."""
 
-        if self.status == TaskStatus.COMPLETED.value:
+        if self.status in (
+            TaskStatus.RUNNING.value,
+            TaskStatus.COMPLETED.value,
+        ):
             raise ValueError(
-                "Cannot start a completed task."
+                "Cannot start a task with status "
+                f"{self.status!r}."
             )
 
         now = datetime.now(timezone.utc)

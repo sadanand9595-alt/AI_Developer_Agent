@@ -256,6 +256,95 @@ def test_task_lifecycle_happy_path(client: TestClient) -> None:
     assert recomplete_response.status_code == 400
 
 
+def test_task_state_transitions_reject_invalid_paths(
+    client: TestClient,
+) -> None:
+    token, _, _ = _register_and_login(
+        client, prefix="task-invalid-state"
+    )
+    headers = _auth_headers(token)
+
+    running_task = client.post(
+        "/tasks",
+        json={
+            "title": "Running task",
+            "description": "This task should reject double start.",
+        },
+        headers=headers,
+    )
+    running_id = running_task.json()["id"]
+    first_start = client.post(
+        f"/tasks/{running_id}/start",
+        headers=headers,
+    )
+    assert first_start.status_code == 200
+    second_start = client.post(
+        f"/tasks/{running_id}/start",
+        headers=headers,
+    )
+    assert second_start.status_code == 400
+    assert second_start.json()["error"]["code"] == "VALIDATION_ERROR"
+
+    completed_task = client.post(
+        "/tasks",
+        json={
+            "title": "Completed task",
+            "description": "This task should reject invalid completion.",
+        },
+        headers=headers,
+    )
+    completed_id = completed_task.json()["id"]
+    assert client.post(f"/tasks/{completed_id}/start", headers=headers).status_code == 200
+    assert client.post(
+        f"/tasks/{completed_id}/complete",
+        json={"result": {"ok": True}},
+        headers=headers,
+    ).status_code == 200
+    assert client.post(
+        f"/tasks/{completed_id}/complete",
+        json={"result": {"ok": True}},
+        headers=headers,
+    ).status_code == 400
+    assert client.post(
+        f"/tasks/{completed_id}/fail",
+        json={"error": {"code": "COMPLETED_TASK", "message": "Should fail."}},
+        headers=headers,
+    ).status_code == 400
+
+    failed_task = client.post(
+        "/tasks",
+        json={
+            "title": "Failed task",
+            "description": "This task should allow retry startup.",
+        },
+        headers=headers,
+    )
+    failed_id = failed_task.json()["id"]
+    assert client.post(f"/tasks/{failed_id}/start", headers=headers).status_code == 200
+    assert client.post(
+        f"/tasks/{failed_id}/fail",
+        json={"error": {"code": "EXAMPLE_FAILURE", "message": "Retry later."}},
+        headers=headers,
+    ).status_code == 200
+    assert client.post(
+        f"/tasks/{failed_id}/fail",
+        json={"error": {"code": "SECOND_FAIL", "message": "Invalid double fail."}},
+        headers=headers,
+    ).status_code == 400
+    assert client.post(
+        f"/tasks/{failed_id}/complete",
+        json={"result": {"ok": True}},
+        headers=headers,
+    ).status_code == 400
+
+    retried_start = client.post(
+        f"/tasks/{failed_id}/start",
+        headers=headers,
+    )
+    assert retried_start.status_code == 200
+    assert retried_start.json()["status"] == "running"
+
+
 def test_task_ownership_blocks_cross_user_access(
     client: TestClient,
 ) -> None:

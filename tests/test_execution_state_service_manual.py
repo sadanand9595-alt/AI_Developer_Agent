@@ -151,5 +151,56 @@ def main() -> None:
         print("=" * 60)
 
 
+def test_execution_state_service_tracks_task_lifecycle() -> None:
+    with session_scope() as session:
+        user_service = UserService(session)
+        user = user_service.create_user(
+            email=f"execution-state-{uuid4()}@example.com",
+            name="Execution State Test User",
+            password_hash="test-hash-not-used",
+        )
+
+        task_service = TaskService(session)
+        repository = TaskRepository(session)
+        state_service = ExecutionStateService(repository)
+
+        success_task = task_service.create_task(
+            user_id=user.id,
+            title="Execution State Success Task",
+            description="Testing successful execution state.",
+        )
+
+        started = state_service.mark_started(success_task)
+        assert started.is_success()
+        assert success_task.status == "running"
+
+        completed = state_service.mark_success(
+            success_task,
+            {"message": "Execution completed successfully."},
+        )
+        assert completed.is_success()
+        assert success_task.status == "completed"
+
+        failure_task = task_service.create_task(
+            user_id=user.id,
+            title="Execution State Failure Task",
+            description="Testing failed execution state.",
+        )
+
+        started_failed = state_service.mark_started(failure_task)
+        assert started_failed.is_success()
+        assert failure_task.status == "running"
+
+        failed = state_service.mark_failure(
+            failure_task,
+            {"error": "Simulated execution failure."},
+        )
+        assert failed.is_success()
+        assert failure_task.status == "failed"
+
+        retry = state_service.increment_retry(failure_task)
+        assert retry.is_success()
+
+
 if __name__ == "__main__":
     main()
