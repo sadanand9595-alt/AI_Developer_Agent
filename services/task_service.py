@@ -62,12 +62,16 @@ class TaskService:
     def start_task(
         self,
         task_id: str,
+        execution_id: str | None = None,
     ) -> Task:
         """Move a task into the running state."""
 
         task = self._get_required_task(task_id)
 
-        self._repository.mark_started(task)
+        self._repository.mark_started(
+            task,
+            execution_id,
+        )
 
         return task
 

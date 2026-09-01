@@ -109,8 +109,11 @@ class ExecutionOrchestrator:
                 details=runtime_result.error.details,
             )
 
+        execution_id = str(__import__("uuid").uuid4())
+
         started = self._state_service.mark_started(
-            task
+            task,
+            execution_id,
         )
 
         if started.is_failure():
@@ -127,6 +130,7 @@ class ExecutionOrchestrator:
             operation=operation,
             session_id=session_id,
             conversation_id=conversation_id,
+            execution_id=execution_id,
             workspace_root=workspace_root,
             working_directory=working_directory,
             permissions=permissions,

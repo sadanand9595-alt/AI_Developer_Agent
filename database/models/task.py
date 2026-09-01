@@ -71,6 +71,12 @@ class Task(Base):
         nullable=False,
     )
 
+    execution_id: Mapped[str | None] = mapped_column(
+        String(36),
+        index=True,
+        nullable=True,
+    )
+
     plan_json: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,
@@ -123,7 +129,10 @@ class Task(Base):
             f")"
         )
 
-    def mark_started(self) -> None:
+    def mark_started(
+        self,
+        execution_id: str | None = None,
+    ) -> None:
         """Mark the task as running."""
 
         if self.status in (
@@ -140,6 +149,9 @@ class Task(Base):
         self.status = TaskStatus.RUNNING.value
         self.started_at = now
         self.updated_at = now
+
+        if execution_id is not None:
+            self.execution_id = execution_id
 
     def mark_completed(
         self,

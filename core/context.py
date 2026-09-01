@@ -65,6 +65,7 @@ class ExecutionContext:
         session_id: str | None = None,
         conversation_id: str | None = None,
         agent_id: str | None = None,
+        execution_id: str | None = None,
         workspace_root: str = ".",
         working_directory: str = ".",
         permissions: set[str] | frozenset[str] | None = None,
@@ -106,6 +107,12 @@ class ExecutionContext:
                 "Metadata must be a dictionary."
             )
 
+        normalized_execution_id = (
+            execution_id.strip()
+            if isinstance(execution_id, str)
+            else None
+        )
+
         return cls(
             user_id=UserId(user_id),
             task_id=TaskId(task_id),
@@ -123,6 +130,11 @@ class ExecutionContext:
                 AgentId(agent_id)
                 if agent_id
                 else None
+            ),
+            execution_id=(
+                ExecutionId(normalized_execution_id)
+                if normalized_execution_id
+                else ExecutionId(str(uuid4()))
             ),
             workspace_root=workspace_root,
             working_directory=working_directory,

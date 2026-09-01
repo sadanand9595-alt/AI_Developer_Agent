@@ -6,7 +6,10 @@ Provides persistence operations for AI tasks.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from core.types import TaskStatus
@@ -109,10 +112,63 @@ class TaskRepository:
     def mark_started(
         self,
         task: Task,
+        execution_id: str | None = None,
     ) -> Task:
-        """Mark a task as started."""
+        """Mark a task as started atomically."""
 
-        task.mark_started()
+        if task.status in (
+            TaskStatus.RUNNING.value,
+            TaskStatus.COMPLETED.value,
+        ):
+            raise ValueError(
+                "Cannot start a task with status "
+                f"{task.status!r}."
+            )
+
+        normalized_execution_id = (
+            execution_id.strip()
+            if isinstance(execution_id, str)
+            else None
+        )
+
+        if normalized_execution_id is None:
+            normalized_execution_id = str(
+                task.execution_id or uuid4()
+            )
+
+        now = datetime.now(timezone.utc)
+
+        statement = (
+            update(Task)
+            .where(Task.id == task.id)
+            .where(
+                Task.status.in_(
+                    [
+                        TaskStatus.PENDING.value,
+                        TaskStatus.FAILED.value,
+                    ]
+                )
+            )
+            .values(
+                status=TaskStatus.RUNNING.value,
+                execution_id=normalized_execution_id,
+                started_at=now,
+                updated_at=now,
+            )
+        )
+
+        result = self._session.execute(statement)
+
+        if result.rowcount != 1:
+            raise ValueError(
+                "Task is not eligible to start: "
+                f"{task.id}"
+            )
+
+        task.status = TaskStatus.RUNNING.value
+        task.started_at = now
+        task.execution_id = normalized_execution_id
+        task.updated_at = now
         self._session.flush()
 
         return task

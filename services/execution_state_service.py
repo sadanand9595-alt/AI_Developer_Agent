@@ -89,11 +89,15 @@ class ExecutionStateService:
     def mark_started(
         self,
         task: Task,
+        execution_id: str | None = None,
     ) -> Result[Task]:
         """Mark a task as started."""
 
         try:
-            self._repository.mark_started(task)
+            self._repository.mark_started(
+                task,
+                execution_id,
+            )
 
             return Result.ok(task)
 
@@ -103,5 +107,6 @@ class ExecutionStateService:
                 str(exc),
                 details={
                     "task_id": task.id,
+                    "execution_id": execution_id,
                 },
             )
