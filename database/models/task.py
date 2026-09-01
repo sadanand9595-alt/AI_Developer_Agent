@@ -7,7 +7,7 @@ executed by the AI planning/agent system.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from sqlalchemy import DateTime, ForeignKey, JSON, String, Text
@@ -77,6 +77,16 @@ class Task(Base):
         nullable=True,
     )
 
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    last_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     plan_json: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,
@@ -132,6 +142,8 @@ class Task(Base):
     def mark_started(
         self,
         execution_id: str | None = None,
+        *,
+        lease_ttl_seconds: int = 300,
     ) -> None:
         """Mark the task as running."""
 
@@ -146,12 +158,23 @@ class Task(Base):
 
         now = datetime.now(timezone.utc)
 
+        normalized_execution_id = (
+            execution_id.strip()
+            if isinstance(execution_id, str)
+            else self.execution_id
+        )
+
+        if normalized_execution_id is None:
+            normalized_execution_id = str(uuid4())
+
         self.status = TaskStatus.RUNNING.value
         self.started_at = now
         self.updated_at = now
-
-        if execution_id is not None:
-            self.execution_id = execution_id
+        self.execution_id = normalized_execution_id
+        self.last_heartbeat_at = now
+        self.lease_expires_at = now + timedelta(
+            seconds=max(0, int(lease_ttl_seconds))
+        )
 
     def mark_completed(
         self,
@@ -174,6 +197,8 @@ class Task(Base):
         self.result_json = result
         self.completed_at = now
         self.updated_at = now
+        self.lease_expires_at = None
+        self.last_heartbeat_at = None
 
     def mark_failed(
         self,
@@ -193,6 +218,8 @@ class Task(Base):
         self.status = TaskStatus.FAILED.value
         self.error_json = error
         self.updated_at = datetime.now(timezone.utc)
+        self.lease_expires_at = None
+        self.last_heartbeat_at = None
 
     def increment_retry(self) -> None:
         """Increase the retry counter."""

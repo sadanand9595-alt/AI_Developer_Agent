@@ -22,6 +22,7 @@ class ExecutionStateService:
         self,
         task: Task,
         result: dict | None = None,
+        execution_id: str | None = None,
     ) -> Result[Task]:
         """Mark a task as completed."""
 
@@ -29,6 +30,7 @@ class ExecutionStateService:
             self._repository.mark_completed(
                 task,
                 result,
+                execution_id=execution_id,
             )
 
             return Result.ok(task)
@@ -39,6 +41,7 @@ class ExecutionStateService:
                 str(exc),
                 details={
                     "task_id": task.id,
+                    "execution_id": execution_id,
                 },
             )
 
@@ -46,6 +49,7 @@ class ExecutionStateService:
         self,
         task: Task,
         error: dict | None = None,
+        execution_id: str | None = None,
     ) -> Result[Task]:
         """Mark a task as failed."""
 
@@ -53,6 +57,7 @@ class ExecutionStateService:
             self._repository.mark_failed(
                 task,
                 error,
+                execution_id=execution_id,
             )
 
             return Result.ok(task)
@@ -63,6 +68,7 @@ class ExecutionStateService:
                 str(exc),
                 details={
                     "task_id": task.id,
+                    "execution_id": execution_id,
                 },
             )
 

@@ -18,11 +18,12 @@ def initialize_database() -> None:
     """
     Create all registered database tables if they do not exist,
     then apply the minimal compatibility migration for the Task
-    execution_id column on existing SQLite databases.
+    execution_id and lease columns on existing SQLite databases.
     """
 
     Base.metadata.create_all(bind=engine)
     _ensure_task_execution_id_column()
+    _ensure_task_lease_columns()
 
 
 def _ensure_task_execution_id_column() -> None:
@@ -58,6 +59,37 @@ def _ensure_task_execution_id_column() -> None:
                 text(
                     "CREATE INDEX IF NOT EXISTS "
                     "ix_tasks_execution_id ON tasks (execution_id)"
+                )
+            )
+
+
+def _ensure_task_lease_columns() -> None:
+    """Add Task lease metadata columns when missing."""
+
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+
+    if "tasks" not in table_names:
+        return
+
+    columns = {
+        column["name"]
+        for column in inspector.get_columns("tasks")
+    }
+
+    if "lease_expires_at" not in columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE tasks ADD COLUMN lease_expires_at DATETIME"
+                )
+            )
+
+    if "last_heartbeat_at" not in columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE tasks ADD COLUMN last_heartbeat_at DATETIME"
                 )
             )
 

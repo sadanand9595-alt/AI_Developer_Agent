@@ -79,6 +79,7 @@ class TaskService:
         self,
         task_id: str,
         result: dict | None = None,
+        execution_id: str | None = None,
     ) -> Task:
         """Mark a task as successfully completed."""
 
@@ -87,6 +88,7 @@ class TaskService:
         self._repository.mark_completed(
             task,
             result,
+            execution_id=execution_id,
         )
 
         return task
@@ -95,6 +97,7 @@ class TaskService:
         self,
         task_id: str,
         error: dict | None = None,
+        execution_id: str | None = None,
     ) -> Task:
         """Mark a task as failed."""
 
@@ -103,6 +106,7 @@ class TaskService:
         self._repository.mark_failed(
             task,
             error,
+            execution_id=execution_id,
         )
 
         return task

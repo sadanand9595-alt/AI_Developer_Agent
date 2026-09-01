@@ -144,6 +144,7 @@ class ExecutionOrchestrator:
                     "code": execution_result.error.code,
                     "message": execution_result.error.message,
                 },
+                execution_id=execution_id,
             )
 
             return Result.fail(
@@ -161,6 +162,7 @@ class ExecutionOrchestrator:
                     "code": execution.result.error.code,
                     "message": execution.result.error.message,
                 },
+                execution_id=execution_id,
             )
 
             return Result.fail(
@@ -179,6 +181,7 @@ class ExecutionOrchestrator:
             else {
                 "result": execution.result.data,
             },
+            execution_id=execution_id,
         )
 
         if completed.is_failure():
