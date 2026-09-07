@@ -125,6 +125,19 @@ class ExecutionRuntimeService:
             metadata=metadata,
         )
 
+    def wait_for_approval(
+        self,
+        execution_id: str,
+        *,
+        metadata: dict[str, object] | None = None,
+    ) -> ExecutionRecord:
+        """Mark an execution as waiting for approval."""
+
+        return self._runtime.wait_for_approval(
+            execution_id,
+            metadata=metadata,
+        )
+
     def get(
         self,
         execution_id: str,

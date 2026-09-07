@@ -1,4 +1,4 @@
-"""
+﻿"""
 Action executor for AI Command Center.
 
 Resolves registered actions and executes them in a controlled
@@ -68,14 +68,6 @@ class ActionExecutor:
         # -----------------------------------------------------
         # STEP NAME VALIDATION
         # -----------------------------------------------------
-        #
-        # step.name is used as the stage-result key below, which
-        # requires a string. PlanStep is a plain dataclass with
-        # no field validation of its own, so a directly
-        # constructed step with a non-string name must be
-        # rejected here rather than crashing inside
-        # context.add_stage_result().
-        # -----------------------------------------------------
 
         if not isinstance(
             step.name,
@@ -117,6 +109,61 @@ class ActionExecutor:
                     "step_name": step.name,
                 },
             )
+
+        # -----------------------------------------------------
+        # APPROVAL GATE
+        # -----------------------------------------------------
+
+        if step.requires_approval:
+            approved_step_id = context.get_metadata(
+                "approved_step_id"
+            )
+
+            if approved_step_id != step.step_id:
+                approval_error = {
+                    "error": "Approval required before executing this step.",
+                    "error_code": "APPROVAL_REQUIRED",
+                }
+
+                context.add_stage_result(
+                    step.name,
+                    approval_error,
+                )
+
+                context.set_metadata(
+                    "execution_status",
+                    "waiting_approval",
+                )
+
+                return Result.fail(
+                    "APPROVAL_REQUIRED",
+                    "Approval required before executing this step.",
+                    details={
+                        "step_id": step.step_id,
+                        "step_name": step.name,
+                        "action": action_name,
+                    },
+                )
+
+        # -----------------------------------------------------
+        # CURRENT STEP CONTEXT
+        # -----------------------------------------------------
+        #
+        # Actions such as write_file consume the normalized
+        # current step from PipelineContext metadata.
+        # -----------------------------------------------------
+
+        context.set_metadata(
+            "current_step",
+            {
+                "step_id": step.step_id,
+                "name": step.name,
+                "description": step.description,
+                "action": action_name,
+                "requires_approval": step.requires_approval,
+                "metadata": dict(step.metadata),
+            },
+        )
 
         # -----------------------------------------------------
         # RESOLVE ACTION

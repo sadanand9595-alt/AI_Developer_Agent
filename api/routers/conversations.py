@@ -11,17 +11,25 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from api.deps import get_current_user, get_db
+from api.deps import (
+    get_ai_execution_service,
+    get_current_user,
+    get_db,
+)
 from api.schemas import (
     ConversationCreateRequest,
     ConversationResponse,
+    AIMessageResponse,
     MessageCreateRequest,
     MessageResponse,
 )
 from database.models.conversation import Conversation
 from database.models.user import User
+from core.pipeline_context import PipelineContext
 from services.conversation_service import ConversationService
 from services.message_service import MessageService
+from services.ai_execution_service import AIExecutionService
+from services.approval_service import ApprovalService
 
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
@@ -147,6 +155,77 @@ def add_message(
         conversation_id=conversation_id,
         content=payload.content,
         metadata=payload.metadata,
+    )
+
+
+@router.post(
+    "/{conversation_id}/messages/execute",
+    response_model=AIMessageResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def execute_message(
+    conversation_id: str,
+    payload: MessageCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    ai_service: AIExecutionService = Depends(get_ai_execution_service),
+) -> AIMessageResponse:
+    """Persist a user message, execute it, and persist the assistant result."""
+
+    _owned_conversation(
+        conversation_id,
+        ConversationService(db),
+        current_user,
+    )
+
+    message_service = MessageService(db)
+    user_message = message_service.add_user_message(
+        conversation_id=conversation_id,
+        content=payload.content,
+        metadata=payload.metadata,
+    )
+    db.commit()
+
+    context_result = ai_service.execute(
+        payload.content,
+        approval_service=ApprovalService(db),
+        context=PipelineContext(
+            user_id=current_user.id,
+            metadata={"conversation_id": conversation_id},
+        ),
+    )
+
+    if context_result.is_failure():
+        if context_result.error.code == "APPROVAL_REQUIRED":
+            raise HTTPException(
+                status_code=status.HTTP_202_ACCEPTED,
+                detail={
+                    "code": context_result.error.code,
+                    "message": context_result.error.message,
+                    **context_result.error.details,
+                },
+            )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": context_result.error.code,
+                "message": context_result.error.message,
+            },
+        )
+
+    context = context_result.require_data()
+    assistant_message = message_service.add_assistant_message(
+        conversation_id=conversation_id,
+        content=str(context.output_data),
+        metadata={
+            "execution_id": context.execution_id,
+            "stage_results": context.stage_results,
+        },
+    )
+
+    return AIMessageResponse(
+        user_message=user_message,
+        assistant_message=assistant_message,
     )
 
 

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from database.models.user import User
 from database.repositories.user_repository import UserRepository
 from database.session import session_scope
 from api.security import InvalidTokenError, decode_access_token
+from services.ai_execution_service import AIExecutionService
 
 
 _oauth2_scheme = OAuth2PasswordBearer(
@@ -81,3 +82,15 @@ def require_admin(
         )
 
     return current_user
+
+
+def get_ai_execution_service(request: Request) -> AIExecutionService:
+    """Return the AI execution service initialized by application lifespan."""
+
+    service = getattr(request.app.state, "ai_execution_service", None)
+    if not isinstance(service, AIExecutionService):
+        raise RuntimeError(
+            "AI execution service is not initialized."
+        )
+
+    return service

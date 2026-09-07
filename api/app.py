@@ -12,9 +12,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.errors import register_exception_handlers
 from api.routers import approvals, auth, conversations, tasks
+from ai.planner import AIPlanner
+from ai.factory import AIProviderFactory
 from config.environment import bootstrap_environment
 from config.settings import settings
+from core.execution_system_factory import ExecutionSystemFactory
 from database.initializer import initialize_database
+from services.ai_execution_service import AIExecutionService
 
 
 @asynccontextmanager
@@ -23,7 +27,26 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     # (e.g. the well-known default JWT secret) still in place.
     bootstrap_environment(settings)
     initialize_database()
-    yield
+    provider_result = AIProviderFactory.create(settings)
+    if provider_result.is_failure():
+        raise RuntimeError(
+            f"{provider_result.error.code}: "
+            f"{provider_result.error.message}"
+        )
+
+    provider = provider_result.require_data()
+    execution_system = ExecutionSystemFactory.create_with_provider(
+        provider
+    )
+    app.state.ai_execution_service = AIExecutionService(
+        AIPlanner(provider),
+        execution_system,
+    )
+
+    try:
+        yield
+    finally:
+        execution_system.close()
 
 
 def create_app() -> FastAPI:

@@ -23,27 +23,27 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id: Mapped[str] = mapped_column(
-        String(36),
+        String(255),
         primary_key=True,
         default=lambda: str(uuid4()),
     )
 
     user_id: Mapped[str] = mapped_column(
-        String(36),
+        String(255),
         ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )
 
     conversation_id: Mapped[str | None] = mapped_column(
-        String(36),
+        String(255),
         ForeignKey("conversations.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
     )
 
     parent_task_id: Mapped[str | None] = mapped_column(
-        String(36),
+        String(255),
         ForeignKey("tasks.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
@@ -72,7 +72,7 @@ class Task(Base):
     )
 
     execution_id: Mapped[str | None] = mapped_column(
-        String(36),
+        String(255),
         index=True,
         nullable=True,
     )

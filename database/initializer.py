@@ -27,11 +27,12 @@ def initialize_database() -> None:
     _ensure_task_execution_id_column()
     _ensure_task_lease_columns()
     _ensure_task_lease_owner_id_column()
+    _ensure_approval_execution_columns()
     _reconcile_expired_running_tasks()
 
 
 def _ensure_task_execution_id_column() -> None:
-    """Add the Task.execution_id column and index when missing."""
+    """Ensure Task.execution_id exists with sufficient capacity."""
 
     inspector = inspect(engine)
     table_names = set(inspector.get_table_names())
@@ -48,7 +49,17 @@ def _ensure_task_execution_id_column() -> None:
         with engine.begin() as connection:
             connection.execute(
                 text(
-                    "ALTER TABLE tasks ADD COLUMN execution_id VARCHAR(36)"
+                    "ALTER TABLE tasks "
+                    "ADD COLUMN execution_id VARCHAR(255)"
+                )
+            )
+    else:
+        # Existing databases may have the old VARCHAR(36) column.
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE tasks "
+                    "ALTER COLUMN execution_id TYPE VARCHAR(255)"
                 )
             )
 
@@ -62,7 +73,8 @@ def _ensure_task_execution_id_column() -> None:
             connection.execute(
                 text(
                     "CREATE INDEX IF NOT EXISTS "
-                    "ix_tasks_execution_id ON tasks (execution_id)"
+                    "ix_tasks_execution_id "
+                    "ON tasks (execution_id)"
                 )
             )
 
@@ -141,6 +153,33 @@ def _reconcile_expired_running_tasks() -> None:
     with session_scope() as session:
         repository = TaskRepository(session)
         repository.reconcile_expired_running_tasks()
+
+
+def _ensure_approval_execution_columns() -> None:
+    """Add execution resume metadata to existing approval databases."""
+
+    inspector = inspect(engine)
+    if "approval_requests" not in set(inspector.get_table_names()):
+        return
+
+    columns = {
+        column["name"]
+        for column in inspector.get_columns("approval_requests")
+    }
+    additions = {
+        "execution_id": "VARCHAR(255)",
+        "plan_id": "VARCHAR(36)",
+        "step_id": "VARCHAR(36)",
+    }
+    with engine.begin() as connection:
+        for name, sql_type in additions.items():
+            if name not in columns:
+                connection.execute(
+                    text(
+                        f"ALTER TABLE approval_requests "
+                        f"ADD COLUMN {name} {sql_type}"
+                    )
+                )
 
 
 def get_table_names() -> list[str]:

@@ -15,29 +15,21 @@ from core.result import Result
 
 @dataclass(frozen=True, slots=True)
 class PlanStep:
-    """A single step in an execution plan."""
-
     step_id: str
     name: str
     description: str
     action: str
     order: int
     requires_approval: bool = False
-    metadata: dict[str, object] = field(
-        default_factory=dict
-    )
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
 class ExecutionPlan:
-    """Structured plan produced by the planner."""
-
     plan_id: str
     request: str
     steps: tuple[PlanStep, ...]
-    metadata: dict[str, object] = field(
-        default_factory=dict
-    )
+    metadata: dict[str, object] = field(default_factory=dict)
 
     @property
     def step_count(self) -> int:

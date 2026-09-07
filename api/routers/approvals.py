@@ -14,7 +14,7 @@ Ownership model:
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from api.deps import get_current_user, get_db, require_admin
@@ -22,6 +22,7 @@ from api.schemas import ApprovalActionRequest, ApprovalResponse
 from database.models.approval import ApprovalRequest
 from database.models.user import User
 from services.approval_service import ApprovalService
+from services.ai_execution_service import AIExecutionService
 
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
@@ -83,14 +84,15 @@ def get_approval(
 
 @router.post(
     "/{approval_id}/approve",
-    response_model=ApprovalResponse,
+    response_model=None,
 )
 def approve_request(
     approval_id: str,
     payload: ApprovalActionRequest,
+    request: Request,
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
-) -> ApprovalRequest:
+) -> dict:
     """Approve a pending request (administrator only)."""
 
     service = ApprovalService(db)
@@ -101,23 +103,44 @@ def approve_request(
             detail="Approval request not found.",
         )
 
-    return service.approve(
+    approval = service.approve(
         approval_id,
         reviewer_id=admin.id,
         comment=payload.comment,
     )
+    ai_service = getattr(
+        request.app.state,
+        "ai_execution_service",
+        None,
+    )
+    if approval.execution_id and isinstance(ai_service, AIExecutionService):
+        result = ai_service.resume_approved_execution(
+            approval.execution_id,
+            approval.id,
+            approval_service=service,
+        )
+        return {
+            "approval": approval,
+            "execution_status": (
+                "completed" if result.is_success() else result.error.code
+            ),
+            "execution_id": approval.execution_id,
+            "plan_id": approval.plan_id,
+        }
+    return approval
 
 
 @router.post(
     "/{approval_id}/reject",
-    response_model=ApprovalResponse,
+    response_model=None,
 )
 def reject_request(
     approval_id: str,
     payload: ApprovalActionRequest,
+    request: Request,
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
-) -> ApprovalRequest:
+) -> dict:
     """Reject a pending request (administrator only)."""
 
     service = ApprovalService(db)
@@ -128,8 +151,28 @@ def reject_request(
             detail="Approval request not found.",
         )
 
-    return service.reject(
+    approval = service.reject(
         approval_id,
         reviewer_id=admin.id,
         comment=payload.comment,
     )
+    ai_service = getattr(
+        request.app.state,
+        "ai_execution_service",
+        None,
+    )
+    if approval.execution_id and isinstance(ai_service, AIExecutionService):
+        result = ai_service.reject_execution(
+            approval.execution_id,
+            approval.id,
+            approval_service=service,
+        )
+        return {
+            "approval": approval,
+            "execution_status": (
+                "cancelled" if result.is_failure() else "completed"
+            ),
+            "execution_id": approval.execution_id,
+            "plan_id": approval.plan_id,
+        }
+    return approval

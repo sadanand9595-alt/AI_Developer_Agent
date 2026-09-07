@@ -35,6 +35,22 @@ class ApprovalRequest(Base):
         nullable=False,
     )
 
+    execution_id: Mapped[str | None] = mapped_column(
+        String(255),
+        index=True,
+        nullable=True,
+    )
+
+    plan_id: Mapped[str | None] = mapped_column(
+        String(36),
+        nullable=True,
+    )
+
+    step_id: Mapped[str | None] = mapped_column(
+        String(36),
+        nullable=True,
+    )
+
     task_id: Mapped[str | None] = mapped_column(
         String(36),
         ForeignKey("tasks.id", ondelete="SET NULL"),

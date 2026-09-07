@@ -18,6 +18,8 @@ Central orchestration boundary for:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from core.action_executor import ActionExecutor
 from core.action_registry import ActionRegistry
 from core.execution_context_runtime_application import (
@@ -32,9 +34,16 @@ from core.execution_registry_service import (
 from core.execution_tracker import ExecutionProgress
 from core.plan_executor import PlanExecutor
 from core.planning_pipeline import PlanningPipeline
-from core.planner import ExecutionPlan
+from core.planner import ExecutionPlan, PlanStep
 from core.pipeline_context import PipelineContext
 from core.result import Result
+
+
+@dataclass(slots=True)
+class _PausedExecution:
+    plan: ExecutionPlan
+    context: PipelineContext
+    step_index: int
 
 
 class ExecutionCoordinator:
@@ -192,6 +201,7 @@ class ExecutionCoordinator:
             if runtime_application is not None
             else ExecutionContextRuntimeApplication()
         )
+        self._paused: dict[str, _PausedExecution] = {}
 
     # =========================================================
     # MAIN EXECUTION API
@@ -407,6 +417,44 @@ class ExecutionCoordinator:
         # -----------------------------------------------------
 
         if result.is_failure():
+            if result.error.code == "APPROVAL_REQUIRED":
+                step_index = next(
+                    (
+                        index
+                        for index, step in enumerate(plan.steps)
+                        if step.step_id
+                        == result.error.details.get("step_id")
+                    ),
+                    0,
+                )
+                self._paused[execution_id] = _PausedExecution(
+                    plan=plan,
+                    context=context,
+                    step_index=step_index,
+                )
+                self._facade.wait_for_approval(
+                    execution_id,
+                    metadata={
+                        "plan_id": plan.plan_id,
+                        "approval": result.error.details,
+                    },
+                )
+                context.set_metadata(
+                    "execution_status",
+                    "waiting_approval",
+                )
+                return Result.fail(
+                    result.error.code,
+                    result.error.message,
+                    details={
+                        **result.error.details,
+                        "execution_id": execution_id,
+                        "plan_id": plan.plan_id,
+                        "status": "waiting_approval",
+                        "plan": self._serialize_plan(plan),
+                    },
+                )
+
             error_code = result.error.code
             error_message = result.error.message
 
@@ -537,6 +585,174 @@ class ExecutionCoordinator:
             final_context
         )
 
+    def restore_paused_execution(
+        self,
+        snapshot: dict[str, object],
+    ) -> Result[None]:
+        """Restore a persisted approval-paused execution."""
+
+        if not isinstance(snapshot, dict):
+            return Result.fail(
+                "INVALID_EXECUTION_SNAPSHOT",
+                "Execution snapshot must be an object.",
+            )
+
+        execution_id = snapshot.get("execution_id")
+        plan_data = snapshot.get("plan")
+        context_data = snapshot.get("context")
+        step_index = snapshot.get("step_index")
+
+        if not isinstance(execution_id, str) or not execution_id.strip():
+            return Result.fail(
+                "INVALID_EXECUTION_SNAPSHOT",
+                "Execution snapshot has no valid execution ID.",
+            )
+        if not isinstance(plan_data, dict):
+            return Result.fail(
+                "INVALID_EXECUTION_SNAPSHOT",
+                "Execution snapshot has no valid plan.",
+            )
+        if not isinstance(context_data, dict):
+            return Result.fail(
+                "INVALID_EXECUTION_SNAPSHOT",
+                "Execution snapshot has no valid context.",
+            )
+        if (
+            not isinstance(step_index, int)
+            or isinstance(step_index, bool)
+            or step_index < 0
+        ):
+            return Result.fail(
+                "INVALID_EXECUTION_SNAPSHOT",
+                "Execution snapshot has no valid step index.",
+            )
+
+        try:
+            plan = self._deserialize_plan(plan_data)
+            context = PipelineContext(
+                execution_id=execution_id,
+                task_id=self._optional_string(
+                    context_data.get("task_id")
+                ),
+                user_id=self._optional_string(
+                    context_data.get("user_id")
+                ),
+                agent_id=self._optional_string(
+                    context_data.get("agent_id")
+                ),
+                input_data=context_data.get("input_data"),
+                output_data=context_data.get("output_data"),
+                metadata=self._dict_value(
+                    context_data.get("metadata")
+                ),
+                stage_results=self._dict_value(
+                    context_data.get("stage_results")
+                ),
+            )
+        except ValueError as exc:
+            return Result.fail(
+                "INVALID_EXECUTION_SNAPSHOT",
+                str(exc),
+            )
+
+        if step_index >= len(plan.steps):
+            return Result.fail(
+                "INVALID_EXECUTION_SNAPSHOT",
+                "Execution snapshot step index is out of range.",
+            )
+
+        if self._paused.get(execution_id) is not None:
+            return Result.ok()
+
+        if self.get(execution_id) is not None:
+            return Result.fail(
+                "EXECUTION_ALREADY_REGISTERED",
+                "Execution already exists in this coordinator.",
+            )
+
+        try:
+            self.start(
+                execution_id,
+                task_id=context.task_id,
+                total_steps=len(plan.steps),
+                metadata={"plan_id": plan.plan_id},
+            )
+            self._facade.wait_for_approval(
+                execution_id,
+                metadata={
+                    "plan_id": plan.plan_id,
+                    "status": "waiting_approval",
+                },
+            )
+        except (KeyError, ValueError) as exc:
+            return Result.fail(
+                "EXECUTION_RESTORE_ERROR",
+                str(exc),
+                details={"execution_id": execution_id},
+            )
+
+        context.set_metadata("execution_status", "waiting_approval")
+        self._paused[execution_id] = _PausedExecution(
+            plan=plan,
+            context=context,
+            step_index=step_index,
+        )
+        return Result.ok()
+
+    def resume_approved(
+        self,
+        execution_id: str,
+        approval_id: str,
+    ) -> Result[PipelineContext]:
+        """Resume a paused execution from its blocked step."""
+
+        paused = self._paused.get(execution_id)
+        if paused is None:
+            return Result.fail(
+                "EXECUTION_NOT_WAITING_APPROVAL",
+                "Execution is not waiting for approval.",
+            )
+        if not isinstance(approval_id, str) or not approval_id.strip():
+            return Result.fail(
+                "INVALID_APPROVAL_ID",
+                "Approval ID cannot be empty.",
+            )
+        paused.context.set_metadata(
+            "approved_step_id",
+            paused.plan.steps[paused.step_index].step_id,
+        )
+
+        result = self._execute_plan_steps(
+            plan=paused.plan,
+            context=paused.context,
+            start_index=paused.step_index,
+            resume_first=True,
+        )
+        if result.is_failure():
+            return Result.fail(
+                result.error.code,
+                result.error.message,
+                details={
+                    **result.error.details,
+                    "execution_id": execution_id,
+                    "plan_id": paused.plan.plan_id,
+                },
+            )
+
+        final_context = result.require_data()
+        record = self.get(execution_id)
+        if record is not None and record.status == "running":
+            self.complete(
+                execution_id,
+                output=final_context.output_data,
+                metadata={"plan_id": paused.plan.plan_id},
+            )
+        elif record is not None and record.status == "completed":
+            self._cleanup_completed_runtime(execution_id)
+        self._paused.pop(execution_id, None)
+        final_context.set_metadata("execution_status", "completed")
+        return Result.ok(final_context)
+
     # =========================================================
     # PLAN STEP EXECUTION
     # =========================================================
@@ -546,6 +762,8 @@ class ExecutionCoordinator:
         *,
         plan: ExecutionPlan,
         context: PipelineContext,
+        start_index: int = 0,
+        resume_first: bool = False,
     ) -> Result[PipelineContext]:
         """
         Execute plan steps sequentially.
@@ -559,7 +777,9 @@ class ExecutionCoordinator:
 
         current_context = context
 
-        for step in plan.steps:
+        for index, step in enumerate(plan.steps):
+            if index < start_index:
+                continue
             execution_id = (
                 current_context.execution_id
             )
@@ -652,6 +872,107 @@ class ExecutionCoordinator:
         return Result.ok(
             current_context
         )
+
+    @staticmethod
+    def _serialize_plan(
+        plan: ExecutionPlan,
+    ) -> dict[str, object]:
+        """Serialize a validated plan for approval recovery."""
+
+        return {
+            "plan_id": plan.plan_id,
+            "request": plan.request,
+            "metadata": dict(plan.metadata),
+            "steps": [
+                {
+                    "step_id": step.step_id,
+                    "name": step.name,
+                    "description": step.description,
+                    "action": step.action,
+                    "order": step.order,
+                    "requires_approval": step.requires_approval,
+                    "metadata": dict(step.metadata),
+                }
+                for step in plan.steps
+            ],
+        }
+
+    @staticmethod
+    def _deserialize_plan(
+        data: dict[str, object],
+    ) -> ExecutionPlan:
+        """Validate and reconstruct a persisted execution plan."""
+
+        plan_id = data.get("plan_id")
+        request = data.get("request")
+        raw_steps = data.get("steps")
+        if (
+            not isinstance(plan_id, str)
+            or not plan_id.strip()
+            or not isinstance(request, str)
+            or not request.strip()
+            or not isinstance(raw_steps, list)
+            or not raw_steps
+        ):
+            raise ValueError("Execution snapshot plan is invalid.")
+
+        steps = []
+        for raw_step in raw_steps:
+            if not isinstance(raw_step, dict):
+                raise ValueError("Execution snapshot step is invalid.")
+            required = (
+                "step_id",
+                "name",
+                "description",
+                "action",
+                "order",
+            )
+            if any(
+                not isinstance(raw_step.get(key), str)
+                for key in required[:4]
+            ) or not isinstance(raw_step.get("order"), int):
+                raise ValueError("Execution snapshot step is invalid.")
+            metadata = raw_step.get("metadata", {})
+            requires_approval = raw_step.get(
+                "requires_approval",
+                False,
+            )
+            if not isinstance(metadata, dict) or not isinstance(
+                requires_approval,
+                bool,
+            ):
+                raise ValueError("Execution snapshot step is invalid.")
+            steps.append(
+                PlanStep(
+                    step_id=raw_step["step_id"],
+                    name=raw_step["name"],
+                    description=raw_step["description"],
+                    action=raw_step["action"],
+                    order=raw_step["order"],
+                    requires_approval=requires_approval,
+                    metadata=dict(metadata),
+                )
+            )
+
+        metadata = data.get("metadata", {})
+        if not isinstance(metadata, dict):
+            raise ValueError("Execution snapshot plan is invalid.")
+        return ExecutionPlan(
+            plan_id=plan_id,
+            request=request,
+            steps=tuple(steps),
+            metadata=dict(metadata),
+        )
+
+    @staticmethod
+    def _dict_value(value: object) -> dict[str, object]:
+        if not isinstance(value, dict):
+            return {}
+        return dict(value)
+
+    @staticmethod
+    def _optional_string(value: object) -> str | None:
+        return value if isinstance(value, str) else None
 
     # =========================================================
     # EXECUTION LIFECYCLE

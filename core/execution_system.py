@@ -12,6 +12,8 @@ from core.execution_coordinator import ExecutionCoordinator
 from core.execution_facade import ExecutionFacade
 from core.execution_manager import ExecutionRecord
 from core.execution_tracker import ExecutionProgress
+from core.pipeline_context import PipelineContext
+from core.result import Result
 
 
 class ExecutionSystem:
@@ -51,6 +53,27 @@ class ExecutionSystem:
             total_steps=total_steps,
             metadata=metadata,
         )
+
+    def execute(
+        self,
+        *,
+        request: str,
+        steps: list[dict[str, object]],
+        context: PipelineContext,
+    ) -> Result[PipelineContext]:
+        """Build and execute a plan through the coordinator."""
+
+        return self._coordinator.execute(
+            request=request,
+            steps=steps,
+            context=context,
+        )
+
+    @property
+    def coordinator(self) -> ExecutionCoordinator:
+        """Return the configured execution coordinator."""
+
+        return self._coordinator
 
     def start_step(
         self,

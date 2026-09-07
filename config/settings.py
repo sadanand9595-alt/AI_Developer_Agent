@@ -11,6 +11,10 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def _get_bool(name: str, default: bool) -> bool:
     """Read a boolean environment variable safely."""

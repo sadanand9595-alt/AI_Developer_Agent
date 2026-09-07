@@ -119,6 +119,11 @@ class MessageResponse(BaseModel):
     created_at: datetime
 
 
+class AIMessageResponse(BaseModel):
+    user_message: MessageResponse
+    assistant_message: MessageResponse
+
+
 # ---------------------------------------------------------------------------
 # Approvals
 # ---------------------------------------------------------------------------
@@ -133,6 +138,9 @@ class ApprovalResponse(BaseModel):
 
     id: str
     user_id: str
+    execution_id: str | None = None
+    plan_id: str | None = None
+    step_id: str | None = None
     action: str
     reason: str
     requested_operation: str

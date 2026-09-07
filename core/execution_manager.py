@@ -143,6 +143,25 @@ class ExecutionManager:
             metadata=metadata,
         )
 
+    def wait_for_approval(
+        self,
+        execution_id: str,
+        *,
+        metadata: dict[str, object] | None = None,
+    ) -> ExecutionRecord:
+        """Mark an active execution as waiting for approval."""
+
+        with self._lock:
+            record = self._executions.get(execution_id.strip())
+            if record is None:
+                raise KeyError(f"Execution not found: {execution_id}")
+            if record.status != self._ACTIVE_STATUS:
+                raise ValueError("Execution is not running.")
+            record.status = "waiting_approval"
+            if metadata:
+                record.metadata.update(metadata)
+            return record
+
     def fail(
         self,
         execution_id: str,

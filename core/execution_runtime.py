@@ -253,6 +253,19 @@ class ExecutionRuntime:
 
         return record
 
+    def wait_for_approval(
+        self,
+        execution_id: str,
+        *,
+        metadata: dict[str, object] | None = None,
+    ) -> ExecutionRecord:
+        """Pause lifecycle state without terminating runtime resources."""
+
+        return self._manager.wait_for_approval(
+            execution_id,
+            metadata=metadata,
+        )
+
     def get(
         self,
         execution_id: str,

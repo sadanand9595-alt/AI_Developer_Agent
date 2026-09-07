@@ -4,9 +4,13 @@ Shared pytest fixtures for the AI Command Center test suite.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from database.initializer import initialize_database
+from database.repositories.task_repository import TaskRepository
+from database.session import session_scope
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -31,3 +35,21 @@ def _ensure_database_schema() -> None:
     """
 
     initialize_database()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_running_task_leases():
+    """Prevent durable running leases from leaking between tests."""
+
+    _reconcile_all_running_tasks()
+    yield
+    _reconcile_all_running_tasks()
+
+
+def _reconcile_all_running_tasks() -> None:
+    """Finish any test-created running leases before the next test."""
+
+    with session_scope() as session:
+        TaskRepository(session).reconcile_expired_running_tasks(
+            now=datetime.now(timezone.utc) + timedelta(days=3650)
+        )
