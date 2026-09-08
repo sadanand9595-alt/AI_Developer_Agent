@@ -25,7 +25,8 @@ from services.user_service import UserService
 
 @pytest.fixture()
 def client() -> TestClient:
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 def _unique_email(prefix: str) -> str:

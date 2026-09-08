@@ -10,10 +10,12 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
+from api.security import InvalidTokenError, decode_access_token
 from database.models.user import User
 from database.repositories.user_repository import UserRepository
 from database.session import session_scope
-from api.security import InvalidTokenError, decode_access_token
+from services.agent_ai_execution_service import AgentAIExecutionService
+from services.agent_runtime_service import AgentRuntimeService
 from services.ai_execution_service import AIExecutionService
 
 
@@ -84,13 +86,39 @@ def require_admin(
     return current_user
 
 
-def get_ai_execution_service(request: Request) -> AIExecutionService:
+def get_ai_execution_service(
+    request: Request,
+) -> AIExecutionService:
     """Return the AI execution service initialized by application lifespan."""
 
-    service = getattr(request.app.state, "ai_execution_service", None)
+    service = getattr(
+        request.app.state,
+        "ai_execution_service",
+        None,
+    )
+
     if not isinstance(service, AIExecutionService):
         raise RuntimeError(
             "AI execution service is not initialized."
         )
 
     return service
+
+
+def get_agent_ai_execution_service(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> AgentAIExecutionService:
+    """
+    Build an Agent-aware AI execution service for this request.
+
+    The AIExecutionService is application-scoped, while the
+    AgentRuntimeService owns the request-scoped database session.
+    """
+
+    ai_service = get_ai_execution_service(request)
+
+    return AgentAIExecutionService(
+        ai_execution_service=ai_service,
+        agent_runtime_service=AgentRuntimeService(db),
+    )

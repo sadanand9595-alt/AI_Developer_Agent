@@ -1,4 +1,4 @@
-"""
+﻿"""
 Agent runtime service for AI Command Center.
 
 Connects persistent agent records with in-memory runtime instances.
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from core.agent_runtime import AgentRuntime
 from core.agent_runtime_manager import AgentRuntimeManager
 from core.result import Result
+from database.models.agent import Agent
 from database.repositories.agent_repository import AgentRepository
 
 
@@ -29,20 +30,36 @@ class AgentRuntimeService:
             else AgentRuntimeManager()
         )
 
-    def get_runtime(
+    def get_agent(
         self,
         agent_id: str,
-    ) -> Result[AgentRuntime]:
-        """Return the runtime for a registered agent."""
+    ) -> Result[Agent]:
+        """Return a registered and enabled Agent."""
 
-        agent = self._repository.get_by_id(agent_id)
+        if not isinstance(agent_id, str):
+            return Result.fail(
+                "INVALID_AGENT_ID",
+                "Agent ID must be a string.",
+            )
+
+        normalized_id = agent_id.strip()
+
+        if not normalized_id:
+            return Result.fail(
+                "INVALID_AGENT_ID",
+                "Agent ID cannot be empty.",
+            )
+
+        agent = self._repository.get_by_id(
+            normalized_id
+        )
 
         if agent is None:
             return Result.fail(
                 "AGENT_NOT_FOUND",
                 "Agent was not found.",
                 details={
-                    "agent_id": agent_id,
+                    "agent_id": normalized_id,
                 },
             )
 
@@ -51,12 +68,29 @@ class AgentRuntimeService:
                 "AGENT_DISABLED",
                 "Agent is disabled.",
                 details={
-                    "agent_id": agent_id,
+                    "agent_id": normalized_id,
                 },
             )
 
+        return Result.ok(agent)
+
+    def get_runtime(
+        self,
+        agent_id: str,
+    ) -> Result[AgentRuntime]:
+        """Return the runtime for a registered agent."""
+
+        agent_result = self.get_agent(agent_id)
+
+        if agent_result.is_failure():
+            return Result.fail(
+                agent_result.error.code,
+                agent_result.error.message,
+                details=agent_result.error.details,
+            )
+
         return self._runtime_manager.get_or_create(
-            agent.id
+            agent_result.require_data().id
         )
 
     def activate_runtime(
@@ -115,3 +149,6 @@ class AgentRuntimeService:
         """Return the underlying runtime manager."""
 
         return self._runtime_manager
+
+
+__all__ = ["AgentRuntimeService"]

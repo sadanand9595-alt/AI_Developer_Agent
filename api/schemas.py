@@ -83,6 +83,24 @@ class TaskResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Agents
+# ---------------------------------------------------------------------------
+
+
+class AgentExecuteRequest(BaseModel):
+    request: str = Field(min_length=1)
+
+
+class AgentExecuteResponse(BaseModel):
+    execution_id: str
+    task_id: str
+    agent_id: str
+    status: str
+    output: Any = None
+    metadata: dict[str, Any]
+
+
+# ---------------------------------------------------------------------------
 # Conversations
 # ---------------------------------------------------------------------------
 
