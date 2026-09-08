@@ -91,6 +91,18 @@ class AgentRepository:
 
         return self._session.scalar(statement)
 
+    def list_all(self) -> list[Agent]:
+        """Return all registered agents."""
+
+        statement = (
+            select(Agent)
+            .order_by(Agent.name.asc())
+        )
+
+        return list(
+            self._session.scalars(statement).all()
+        )
+
     def list_enabled(self) -> list[Agent]:
         """Return all enabled agents."""
 
@@ -121,6 +133,73 @@ class AgentRepository:
         return list(
             self._session.scalars(statement).all()
         )
+
+    def update(
+        self,
+        agent: Agent,
+        *,
+        name: str | None = None,
+        agent_type: str | None = None,
+        description: str | None = None,
+        model_provider: str | None = None,
+        model_name: str | None = None,
+        capabilities: list[str] | None = None,
+        configuration: dict | None = None,
+        max_iterations: int | None = None,
+        update_description: bool = False,
+        update_model_provider: bool = False,
+        update_model_name: bool = False,
+        update_capabilities: bool = False,
+        update_configuration: bool = False,
+    ) -> Agent:
+        """Update editable Agent configuration."""
+
+        if name is not None:
+            normalized_name = name.strip()
+
+            if not normalized_name:
+                raise ValueError(
+                    "Agent name cannot be empty."
+                )
+
+            agent.name = normalized_name
+
+        if agent_type is not None:
+            normalized_type = agent_type.strip()
+
+            if not normalized_type:
+                raise ValueError(
+                    "Agent type cannot be empty."
+                )
+
+            agent.agent_type = normalized_type
+
+        if update_description:
+            agent.description = description
+
+        if update_model_provider:
+            agent.model_provider = model_provider
+
+        if update_model_name:
+            agent.model_name = model_name
+
+        if update_capabilities:
+            agent.capabilities = capabilities
+
+        if update_configuration:
+            agent.configuration = configuration
+
+        if max_iterations is not None:
+            if max_iterations < 1:
+                raise ValueError(
+                    "max_iterations must be at least 1."
+                )
+
+            agent.max_iterations = max_iterations
+
+        self._session.flush()
+
+        return agent
 
     def activate(
         self,

@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +87,74 @@ class TaskResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class AgentCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    agent_type: str = Field(min_length=1, max_length=100)
+    description: str | None = None
+    model_provider: str | None = Field(default=None, max_length=100)
+    model_name: str | None = Field(default=None, max_length=200)
+    capabilities: list[str] | None = None
+    configuration: dict[str, Any] | None = None
+    max_iterations: int = Field(default=10, ge=1)
+
+    @field_validator("name", "agent_type")
+    @classmethod
+    def validate_non_blank(cls, value: str) -> str:
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Value cannot be blank.")
+
+        return value
+
+
+class AgentUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    agent_type: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+    )
+    description: str | None = None
+    model_provider: str | None = Field(default=None, max_length=100)
+    model_name: str | None = Field(default=None, max_length=200)
+    capabilities: list[str] | None = None
+    configuration: dict[str, Any] | None = None
+    max_iterations: int | None = Field(default=None, ge=1)
+
+    @field_validator("name", "agent_type")
+    @classmethod
+    def validate_non_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Value cannot be blank.")
+
+        return value
+
+
+class AgentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    description: str | None
+    agent_type: str
+    model_provider: str | None
+    model_name: str | None
+    capabilities: list[str] | None
+    configuration: dict[str, Any] | None
+    status: str
+    is_enabled: bool
+    max_iterations: int
+    created_at: datetime
+    updated_at: datetime
+    last_active_at: datetime | None
+
+
 class AgentExecuteRequest(BaseModel):
     request: str = Field(min_length=1)
 
@@ -98,7 +166,6 @@ class AgentExecuteResponse(BaseModel):
     status: str
     output: Any = None
     metadata: dict[str, Any]
-
 
 # ---------------------------------------------------------------------------
 # Conversations

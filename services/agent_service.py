@@ -6,6 +6,8 @@ Contains business logic for registering and managing AI agents.
 
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 from database.models.agent import Agent
@@ -66,6 +68,11 @@ class AgentService:
 
         return self._repository.get_by_name(name)
 
+    def list_agents(self) -> list[Agent]:
+        """Return all registered agents."""
+
+        return self._repository.list_all()
+
     def list_enabled_agents(self) -> list[Agent]:
         """Return all enabled agents."""
 
@@ -79,6 +86,53 @@ class AgentService:
 
         return self._repository.list_by_type(
             agent_type
+        )
+
+    def update_agent(
+        self,
+        agent_id: str,
+        *,
+        name: str | None = None,
+        agent_type: str | None = None,
+        description: str | None = None,
+        model_provider: str | None = None,
+        model_name: str | None = None,
+        capabilities: list[str] | None = None,
+        configuration: dict[str, Any] | None = None,
+        max_iterations: int | None = None,
+        update_description: bool = False,
+        update_model_provider: bool = False,
+        update_model_name: bool = False,
+        update_capabilities: bool = False,
+        update_configuration: bool = False,
+    ) -> Agent:
+        """Update an existing Agent's editable configuration."""
+
+        agent = self._get_required_agent(agent_id)
+
+        if name is not None:
+            existing = self._repository.get_by_name(name)
+
+            if existing is not None and existing.id != agent.id:
+                raise ValueError(
+                    f"Agent already exists: {name}"
+                )
+
+        return self._repository.update(
+            agent,
+            name=name,
+            agent_type=agent_type,
+            description=description,
+            model_provider=model_provider,
+            model_name=model_name,
+            capabilities=capabilities,
+            configuration=configuration,
+            max_iterations=max_iterations,
+            update_description=update_description,
+            update_model_provider=update_model_provider,
+            update_model_name=update_model_name,
+            update_capabilities=update_capabilities,
+            update_configuration=update_configuration,
         )
 
     def activate_agent(

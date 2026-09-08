@@ -1,8 +1,9 @@
 """
-Agent execution endpoints.
+Agent management and execution endpoints.
 
-Provides the authenticated HTTP boundary for executing a registered
-autonomous Agent through the existing AI execution pipeline.
+Provides the authenticated HTTP boundary for managing registered
+system-wide Agents and executing them through the existing autonomous
+AI execution pipeline.
 """
 
 from __future__ import annotations
@@ -19,13 +20,18 @@ from api.deps import (
     get_db,
 )
 from api.schemas import (
+    AgentCreateRequest,
     AgentExecuteRequest,
     AgentExecuteResponse,
+    AgentResponse,
+    AgentUpdateRequest,
 )
 from core.pipeline_context import PipelineContext
+from database.models.agent import Agent
 from database.models.user import User
 from services.agent_ai_execution_service import AgentAIExecutionService
 from services.agent_runtime_service import AgentRuntimeService
+from services.agent_service import AgentService
 from services.task_service import TaskService
 
 
@@ -73,6 +79,156 @@ def _agent_error_status(code: str) -> int:
         return status.HTTP_422_UNPROCESSABLE_ENTITY
 
     return status.HTTP_400_BAD_REQUEST
+
+
+# ---------------------------------------------------------------------------
+# Agent Management
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "",
+    response_model=AgentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_agent(
+    payload: AgentCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AgentResponse:
+    """
+    Create a new system-wide Agent.
+
+    Agents are currently system-wide resources and are therefore
+    not owned by the authenticated user.
+    """
+
+    service = AgentService(db)
+
+    agent = service.register_agent(
+        name=payload.name,
+        agent_type=payload.agent_type,
+        description=payload.description,
+        model_provider=payload.model_provider,
+        model_name=payload.model_name,
+        capabilities=payload.capabilities,
+        configuration=payload.configuration,
+        max_iterations=payload.max_iterations,
+    )
+
+    return agent
+
+
+@router.get(
+    "",
+    response_model=list[AgentResponse],
+)
+def list_agents(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[Agent]:
+    """List all registered system-wide Agents."""
+
+    return AgentService(db).list_agents()
+
+
+@router.get(
+    "/{agent_id}",
+    response_model=AgentResponse,
+)
+def get_agent(
+    agent_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AgentResponse:
+    """Return one registered Agent."""
+
+    agent = AgentService(db).get_agent(agent_id)
+
+    if agent is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent not found.",
+        )
+
+    return agent
+
+
+@router.patch(
+    "/{agent_id}",
+    response_model=AgentResponse,
+)
+def update_agent(
+    agent_id: str,
+    payload: AgentUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AgentResponse:
+    """Update an Agent's editable configuration."""
+
+    if not payload.model_fields_set:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="At least one field is required.",
+        )
+
+    service = AgentService(db)
+
+    values = payload.model_dump(
+        exclude_unset=True,
+    )
+
+    agent = service.update_agent(
+        agent_id,
+        name=values.get("name"),
+        agent_type=values.get("agent_type"),
+        description=values.get("description"),
+        model_provider=values.get("model_provider"),
+        model_name=values.get("model_name"),
+        capabilities=values.get("capabilities"),
+        configuration=values.get("configuration"),
+        max_iterations=values.get("max_iterations"),
+        update_description="description" in values,
+        update_model_provider="model_provider" in values,
+        update_model_name="model_name" in values,
+        update_capabilities="capabilities" in values,
+        update_configuration="configuration" in values,
+    )
+
+    return agent
+
+
+@router.post(
+    "/{agent_id}/enable",
+    response_model=AgentResponse,
+)
+def enable_agent(
+    agent_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AgentResponse:
+    """Enable an Agent."""
+
+    return AgentService(db).activate_agent(agent_id)
+
+
+@router.post(
+    "/{agent_id}/disable",
+    response_model=AgentResponse,
+)
+def disable_agent(
+    agent_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AgentResponse:
+    """Disable an Agent."""
+
+    return AgentService(db).disable_agent(agent_id)
+
+
+# ---------------------------------------------------------------------------
+# Agent Execution
+# ---------------------------------------------------------------------------
 
 
 @router.post(

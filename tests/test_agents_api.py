@@ -1,13 +1,13 @@
 """
-Integration tests for Agent execution API.
+Integration tests for Agent management and execution API.
 
-These tests verify the HTTP boundary, authentication, Agent lookup,
-Task creation/lifecycle, and delegation into the autonomous AI
-execution pipeline.
+These tests verify the authenticated HTTP boundary, Agent creation,
+listing, lookup, update, lifecycle management, Task creation/lifecycle,
+and delegation into the autonomous AI execution pipeline.
 
 The database and FastAPI application are real. AI execution itself
-is patched only to make the HTTP tests deterministic and independent
-of a live model response.
+is patched only to make the execution tests deterministic and
+independent of a live model response.
 """
 
 from __future__ import annotations
@@ -18,16 +18,23 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.app import app
+from core.pipeline_context import PipelineContext
+from core.result import Result
 from database.repositories.task_repository import TaskRepository
 from database.session import session_scope
 from services.agent_service import AgentService
 from services.ai_execution_service import AIExecutionService
-from core.pipeline_context import PipelineContext
-from core.result import Result
 
 
 @pytest.fixture()
 def client() -> TestClient:
+    """
+    Create a lifespan-aware FastAPI test client.
+
+    The application lifespan initializes the AI execution service
+    required by the Agent execution dependency.
+    """
+
     with TestClient(app) as test_client:
         yield test_client
 
@@ -119,6 +126,11 @@ def _create_agent(
         return agent.id
 
 
+# ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+
+
 def test_agent_execute_requires_authentication(
     client: TestClient,
 ) -> None:
@@ -132,6 +144,365 @@ def test_agent_execute_requires_authentication(
     )
 
     assert response.status_code == 401
+
+
+def test_agent_management_requires_authentication(
+    client: TestClient,
+) -> None:
+    response = client.get("/agents")
+
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Agent Management API
+# ---------------------------------------------------------------------------
+
+
+def test_create_agent(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-create",
+    )
+
+    agent_name = f"Created Agent {uuid4()}"
+
+    response = client.post(
+        "/agents",
+        json={
+            "name": agent_name,
+            "agent_type": "coding",
+            "description": "Created through API.",
+            "model_provider": "ollama",
+            "model_name": "qwen2.5-coder:7b",
+            "capabilities": [
+                "code_generation",
+            ],
+            "configuration": {
+                "workspace": "test",
+            },
+            "max_iterations": 7,
+        },
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 201, response.text
+
+    body = response.json()
+
+    assert body["name"] == agent_name
+    assert body["agent_type"] == "coding"
+    assert body["description"] == "Created through API."
+    assert body["model_provider"] == "ollama"
+    assert body["model_name"] == "qwen2.5-coder:7b"
+    assert body["capabilities"] == [
+        "code_generation",
+    ]
+    assert body["configuration"] == {
+        "workspace": "test",
+    }
+    assert body["max_iterations"] == 7
+    assert body["is_enabled"] is True
+    assert body["status"] == "idle"
+
+
+def test_create_agent_rejects_blank_name(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-blank-name",
+    )
+
+    response = client.post(
+        "/agents",
+        json={
+            "name": "   ",
+            "agent_type": "coding",
+        },
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 422
+
+
+def test_create_agent_rejects_invalid_max_iterations(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-invalid-iterations",
+    )
+
+    response = client.post(
+        "/agents",
+        json={
+            "name": f"Invalid Iterations Agent {uuid4()}",
+            "agent_type": "coding",
+            "max_iterations": 0,
+        },
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 422
+
+
+def test_list_agents(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-list",
+    )
+
+    agent_name = f"Listed Agent {uuid4()}"
+
+    _create_agent(
+        name_prefix=agent_name,
+    )
+
+    response = client.get(
+        "/agents",
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert isinstance(body, list)
+
+    # _create_agent() appends its own UUID to name_prefix,
+    # so verify the created Agent by its unique name prefix.
+    assert any(
+        agent["name"].startswith(agent_name)
+        for agent in body
+    )
+
+
+def test_get_agent(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-get",
+    )
+
+    agent_id = _create_agent(
+        name_prefix="Get API Agent",
+    )
+
+    response = client.get(
+        f"/agents/{agent_id}",
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["id"] == agent_id
+    assert body["agent_type"] == "coding"
+    assert body["is_enabled"] is True
+
+
+def test_get_unknown_agent(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-get-missing",
+    )
+
+    response = client.get(
+        f"/agents/{uuid4()}",
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 404
+
+
+def test_update_agent(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-update",
+    )
+
+    agent_id = _create_agent(
+        name_prefix="Update API Agent",
+    )
+
+    response = client.patch(
+        f"/agents/{agent_id}",
+        json={
+            "description": "Updated description.",
+            "model_name": "updated-model",
+            "max_iterations": 12,
+            "capabilities": [
+                "code_generation",
+                "testing",
+            ],
+        },
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 200, response.text
+
+    body = response.json()
+
+    assert body["id"] == agent_id
+    assert body["description"] == "Updated description."
+    assert body["model_name"] == "updated-model"
+    assert body["max_iterations"] == 12
+    assert body["capabilities"] == [
+        "code_generation",
+        "testing",
+    ]
+
+
+def test_update_agent_name(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-update-name",
+    )
+
+    agent_id = _create_agent(
+        name_prefix="Original Agent",
+    )
+
+    new_name = f"Renamed Agent {uuid4()}"
+
+    response = client.patch(
+        f"/agents/{agent_id}",
+        json={
+            "name": new_name,
+        },
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["name"] == new_name
+
+
+def test_update_agent_rejects_empty_patch(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-empty-patch",
+    )
+
+    agent_id = _create_agent()
+
+    response = client.patch(
+        f"/agents/{agent_id}",
+        json={},
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_unknown_agent(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-update-missing",
+    )
+
+    response = client.patch(
+        f"/agents/{uuid4()}",
+        json={
+            "description": "Updated.",
+        },
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 400
+
+
+def test_enable_and_disable_agent(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-lifecycle",
+    )
+
+    agent_id = _create_agent(
+        name_prefix="Lifecycle API Agent",
+        enabled=False,
+    )
+
+    disable_response = client.post(
+        f"/agents/{agent_id}/disable",
+        headers=_auth_headers(token),
+    )
+
+    assert disable_response.status_code == 200
+
+    disabled_body = disable_response.json()
+
+    assert disabled_body["id"] == agent_id
+    assert disabled_body["is_enabled"] is False
+    assert disabled_body["status"] == "disabled"
+
+    enable_response = client.post(
+        f"/agents/{agent_id}/enable",
+        headers=_auth_headers(token),
+    )
+
+    assert enable_response.status_code == 200
+
+    enabled_body = enable_response.json()
+
+    assert enabled_body["id"] == agent_id
+    assert enabled_body["is_enabled"] is True
+    assert enabled_body["status"] == "idle"
+
+
+def test_enable_unknown_agent(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-enable-missing",
+    )
+
+    response = client.post(
+        f"/agents/{uuid4()}/enable",
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 400
+
+
+def test_disable_unknown_agent(
+    client: TestClient,
+) -> None:
+    token, _ = _register_and_login(
+        client,
+        prefix="agent-disable-missing",
+    )
+
+    response = client.post(
+        f"/agents/{uuid4()}/disable",
+        headers=_auth_headers(token),
+    )
+
+    assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Agent Execution API
+# ---------------------------------------------------------------------------
 
 
 def test_agent_execute_rejects_invalid_request(
