@@ -725,3 +725,172 @@ class TaskRepository:
         self._session.flush()
 
         return task
+# ============================================================
+
+    # CANCEL TASK
+
+    # ============================================================
+
+    def mark_cancelled(
+
+        self,
+
+        task: Task,
+
+        execution_id: str | None = None,
+
+        lease_owner_id: str | None = None,
+
+    ) -> Task:
+
+        """
+
+        Mark a task as cancelled only by the owning execution.
+
+        """
+
+        normalized_execution_id = (
+
+            self._normalize_execution_id(execution_id)
+
+            or self._normalize_execution_id(
+
+                task.execution_id
+
+            )
+
+        )
+
+        normalized_lease_owner_id = (
+
+            self._normalize_lease_owner_id(
+
+                lease_owner_id
+
+            )
+
+            or self._normalize_lease_owner_id(
+
+                task.lease_owner_id
+
+            )
+
+        )
+
+        if normalized_execution_id is None:
+
+            raise ValueError(
+
+                "Task execution_id is required "
+
+                "before cancellation."
+
+            )
+
+        if normalized_lease_owner_id is None:
+
+            raise ValueError(
+
+                "Task lease_owner_id is required "
+
+                "before cancellation."
+
+            )
+
+        if (
+
+            normalized_lease_owner_id
+
+            != normalized_execution_id
+
+        ):
+
+            raise ValueError(
+
+                "lease_owner_id must match execution_id "
+
+                "before cancellation."
+
+            )
+
+        now = datetime.now(timezone.utc)
+
+        statement = (
+
+            update(Task)
+
+            .where(Task.id == task.id)
+
+            .where(
+
+                Task.status
+
+                == TaskStatus.RUNNING.value
+
+            )
+
+            .where(
+
+                Task.execution_id
+
+                == normalized_execution_id
+
+            )
+
+            .where(
+
+                Task.lease_owner_id
+
+                == normalized_lease_owner_id
+
+            )
+
+            .values(
+
+                status=TaskStatus.CANCELLED.value,
+
+                result_json=None,
+
+                error_json=None,
+
+                completed_at=now,
+
+                updated_at=now,
+
+                lease_owner_id=None,
+
+                lease_expires_at=None,
+
+                last_heartbeat_at=None,
+
+            )
+
+            .execution_options(
+
+                synchronize_session=False
+
+            )
+
+        )
+
+        result_obj = self._session.execute(
+
+            statement
+
+        )
+
+        if result_obj.rowcount != 1:
+
+            raise ValueError(
+
+                "Task is not eligible to cancel "
+
+                "with execution ownership: "
+
+                f"{task.id}"
+
+            )
+
+        self._session.refresh(task)
+
+        return task
