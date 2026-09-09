@@ -31,6 +31,7 @@ from api.routers import (
 
     conversations,
 
+    executions,
     tasks,
 
 )
@@ -152,6 +153,7 @@ def create_app() -> FastAPI:
     app.include_router(approvals.router)
 
     app.include_router(agents.router)
+    app.include_router(executions.router)
 
     @app.get("/health", tags=["health"])
 
