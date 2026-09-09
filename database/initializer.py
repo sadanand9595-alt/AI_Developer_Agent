@@ -19,14 +19,16 @@ from database.session import session_scope
 def initialize_database() -> None:
     """
     Create all registered database tables if they do not exist,
-    then apply the minimal compatibility migration for the Task
-    execution_id and lease columns on existing SQLite databases.
+    then apply the minimal compatibility migrations required by
+    existing databases.
     """
 
     Base.metadata.create_all(bind=engine)
+
     _ensure_task_execution_id_column()
     _ensure_task_lease_columns()
     _ensure_task_lease_owner_id_column()
+    _ensure_task_agent_id_column()
     _ensure_approval_execution_columns()
     _reconcile_expired_running_tasks()
 
@@ -147,6 +149,44 @@ def _ensure_task_lease_owner_id_column() -> None:
             )
 
 
+def _ensure_task_agent_id_column() -> None:
+    """Add Task.agent_id when the existing database is missing it."""
+
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+
+    if "tasks" not in table_names:
+        return
+
+    columns = {
+        column["name"]
+        for column in inspector.get_columns("tasks")
+    }
+
+    if "agent_id" not in columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE tasks "
+                    "ADD COLUMN agent_id VARCHAR(36)"
+                )
+            )
+
+    indexes = {
+        index["name"]
+        for index in inspector.get_indexes("tasks")
+    }
+
+    if "ix_tasks_agent_id" not in indexes:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS "
+                    "ix_tasks_agent_id ON tasks (agent_id)"
+                )
+            )
+
+
 def _reconcile_expired_running_tasks() -> None:
     """Fail stale RUNNING tasks whose durable lease has already expired."""
 
@@ -159,6 +199,7 @@ def _ensure_approval_execution_columns() -> None:
     """Add execution resume metadata to existing approval databases."""
 
     inspector = inspect(engine)
+
     if "approval_requests" not in set(inspector.get_table_names()):
         return
 
@@ -166,11 +207,13 @@ def _ensure_approval_execution_columns() -> None:
         column["name"]
         for column in inspector.get_columns("approval_requests")
     }
+
     additions = {
         "execution_id": "VARCHAR(255)",
         "plan_id": "VARCHAR(36)",
         "step_id": "VARCHAR(36)",
     }
+
     with engine.begin() as connection:
         for name, sql_type in additions.items():
             if name not in columns:

@@ -35,6 +35,13 @@ class Task(Base):
         nullable=False,
     )
 
+    agent_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("agents.id"),
+        index=True,
+        nullable=True,
+    )
+
     conversation_id: Mapped[str | None] = mapped_column(
         String(255),
         ForeignKey("conversations.id", ondelete="SET NULL"),
@@ -179,8 +186,10 @@ class Task(Base):
             if isinstance(lease_owner_id, str)
             else self.lease_owner_id
         )
+
         if normalized_lease_owner_id is None:
             normalized_lease_owner_id = normalized_execution_id
+
         if normalized_lease_owner_id != normalized_execution_id:
             raise ValueError(
                 "lease_owner_id must match execution_id for task start."

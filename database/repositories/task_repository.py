@@ -37,6 +37,7 @@ class TaskRepository:
         description: str,
         conversation_id: str | None = None,
         priority: int = 0,
+        agent_id: str | None = None,
     ) -> Task:
         """Create and persist a new task."""
 
@@ -56,9 +57,14 @@ class TaskRepository:
                 "Task priority cannot be negative."
             )
 
+        normalized_agent_id = self._normalize_agent_id(
+            agent_id
+        )
+
         task = Task(
             user_id=user_id,
             conversation_id=conversation_id,
+            agent_id=normalized_agent_id,
             title=normalized_title,
             description=normalized_description,
             priority=priority,
@@ -85,6 +91,92 @@ class TaskRepository:
         )
 
         return self._session.scalar(statement)
+
+    def get_by_execution_id(
+        self,
+        execution_id: str,
+    ) -> Task | None:
+        """Return a task by execution ID."""
+
+        normalized_execution_id = self._normalize_execution_id(
+            execution_id
+        )
+
+        if normalized_execution_id is None:
+            return None
+
+        statement = select(Task).where(
+            Task.execution_id == normalized_execution_id
+        )
+
+        return self._session.scalar(statement)
+
+    def get_by_execution_id_and_user(
+        self,
+        execution_id: str,
+        user_id: str,
+    ) -> Task | None:
+        """Return a task by execution ID scoped to a user."""
+
+        normalized_execution_id = self._normalize_execution_id(
+            execution_id
+        )
+
+        if normalized_execution_id is None:
+            return None
+
+        statement = select(Task).where(
+            Task.execution_id == normalized_execution_id,
+            Task.user_id == user_id,
+        )
+
+        return self._session.scalar(statement)
+
+    def list_by_agent(
+        self,
+        agent_id: str,
+    ) -> list[Task]:
+        """Return tasks associated with an agent."""
+
+        normalized_agent_id = self._normalize_agent_id(agent_id)
+
+        if normalized_agent_id is None:
+            return []
+
+        statement = (
+            select(Task)
+            .where(Task.agent_id == normalized_agent_id)
+            .order_by(Task.created_at.desc())
+        )
+
+        return list(
+            self._session.scalars(statement).all()
+        )
+
+    def list_by_agent_and_user(
+        self,
+        agent_id: str,
+        user_id: str,
+    ) -> list[Task]:
+        """Return agent tasks belonging to a specific user."""
+
+        normalized_agent_id = self._normalize_agent_id(agent_id)
+
+        if normalized_agent_id is None:
+            return []
+
+        statement = (
+            select(Task)
+            .where(
+                Task.agent_id == normalized_agent_id,
+                Task.user_id == user_id,
+            )
+            .order_by(Task.created_at.desc())
+        )
+
+        return list(
+            self._session.scalars(statement).all()
+        )
 
     def list_by_user(
         self,
@@ -123,6 +215,18 @@ class TaskRepository:
     # ============================================================
     # NORMALIZATION
     # ============================================================
+
+    def _normalize_agent_id(
+        self,
+        agent_id: str | None,
+    ) -> str | None:
+        """Return a normalized agent ID or None."""
+
+        if isinstance(agent_id, str):
+            normalized = agent_id.strip()
+            return normalized or None
+
+        return None
 
     def _normalize_execution_id(
         self,

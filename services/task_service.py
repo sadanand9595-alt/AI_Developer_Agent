@@ -27,6 +27,7 @@ class TaskService:
         description: str,
         conversation_id: str | None = None,
         priority: int = 0,
+        agent_id: str | None = None,
     ) -> Task:
         """Create a new AI task."""
 
@@ -36,6 +37,7 @@ class TaskService:
             description=description,
             conversation_id=conversation_id,
             priority=priority,
+            agent_id=agent_id,
         )
 
     def get_task(
@@ -58,6 +60,51 @@ class TaskService:
         """Return tasks waiting for execution."""
 
         return self._repository.list_pending()
+
+    def get_task_by_execution_id(
+        self,
+        execution_id: str,
+    ) -> Task | None:
+        """Get a task by execution ID."""
+
+        return self._repository.get_by_execution_id(
+            execution_id
+        )
+
+    def get_agent_execution(
+        self,
+        *,
+        agent_id: str,
+        execution_id: str,
+        user_id: str,
+    ) -> Task | None:
+        """Get an agent execution scoped to the requesting user."""
+
+        task = self._repository.get_by_execution_id_and_user(
+            execution_id,
+            user_id,
+        )
+
+        if task is None:
+            return None
+
+        if task.agent_id != agent_id:
+            return None
+
+        return task
+
+    def list_agent_executions(
+        self,
+        *,
+        agent_id: str,
+        user_id: str,
+    ) -> list[Task]:
+        """Return agent executions belonging to a user."""
+
+        return self._repository.list_by_agent_and_user(
+            agent_id,
+            user_id,
+        )
 
     def start_task(
         self,

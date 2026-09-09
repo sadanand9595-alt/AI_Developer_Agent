@@ -23,6 +23,7 @@ from api.schemas import (
     AgentCreateRequest,
     AgentExecuteRequest,
     AgentExecuteResponse,
+    AgentExecutionResponse,
     AgentResponse,
     AgentUpdateRequest,
 )
@@ -227,6 +228,110 @@ def disable_agent(
 
 
 # ---------------------------------------------------------------------------
+# Agent Execution History
+# ---------------------------------------------------------------------------
+
+
+def _task_to_agent_execution(
+    task,
+) -> AgentExecutionResponse:
+    """Convert a durable Task record into an execution response."""
+
+    if not task.execution_id:
+        raise ValueError(
+            "Agent execution task does not have an execution ID."
+        )
+
+    if not task.agent_id:
+        raise ValueError(
+            "Agent execution task does not have an agent ID."
+        )
+
+    return AgentExecutionResponse(
+        execution_id=task.execution_id,
+        task_id=task.id,
+        agent_id=task.agent_id,
+        status=task.status,
+        title=task.title,
+        description=task.description,
+        priority=task.priority,
+        retry_count=task.retry_count,
+        result=task.result_json,
+        error=task.error_json,
+        created_at=task.created_at,
+        started_at=task.started_at,
+        completed_at=task.completed_at,
+        updated_at=task.updated_at,
+    )
+
+
+@router.get(
+    "/{agent_id}/executions",
+    response_model=list[AgentExecutionResponse],
+)
+def list_agent_executions(
+    agent_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[AgentExecutionResponse]:
+    """Return execution history for an Agent and the current user."""
+
+    agent = AgentService(db).get_agent(agent_id)
+
+    if agent is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent not found.",
+        )
+
+    tasks = TaskService(db).list_agent_executions(
+        agent_id=agent_id,
+        user_id=current_user.id,
+    )
+
+    return [
+        _task_to_agent_execution(task)
+        for task in tasks
+        if task.execution_id is not None
+    ]
+
+
+@router.get(
+    "/{agent_id}/executions/{execution_id}",
+    response_model=AgentExecutionResponse,
+)
+def get_agent_execution(
+    agent_id: str,
+    execution_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Return one Agent execution scoped to the current user."""
+
+    agent = AgentService(db).get_agent(agent_id)
+
+    if agent is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent not found.",
+        )
+
+    task = TaskService(db).get_agent_execution(
+        agent_id=agent_id,
+        execution_id=execution_id,
+        user_id=current_user.id,
+    )
+
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent execution not found.",
+        )
+
+    return _task_to_agent_execution(task)
+
+
+# ---------------------------------------------------------------------------
 # Agent Execution
 # ---------------------------------------------------------------------------
 
@@ -274,6 +379,7 @@ def execute_agent(
         user_id=current_user.id,
         title=f"Agent execution: {agent.name}",
         description=payload.request,
+        agent_id=agent.id,
     )
 
     pipeline_context = PipelineContext(
