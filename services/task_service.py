@@ -163,6 +163,23 @@ class TaskService:
         )
 
         return task
+    def cancel_task(
+        self,
+        task_id: str,
+        execution_id: str | None = None,
+        lease_owner_id: str | None = None,
+    ) -> Task:
+        """Mark a running task as cancelled."""
+
+        task = self._get_required_task(task_id)
+
+        self._repository.mark_cancelled(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=lease_owner_id,
+        )
+
+        return task
 
     def retry_task(
         self,
@@ -175,7 +192,6 @@ class TaskService:
         self._repository.increment_retry(task)
 
         return task
-
     def _get_required_task(
         self,
         task_id: str,

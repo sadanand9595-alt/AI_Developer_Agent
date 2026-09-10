@@ -391,6 +391,52 @@ class AIExecutionService:
     def _optional_value(value: object) -> str | None:
         return value if isinstance(value, str) else None
 
+    def cancel_execution(
+        self,
+        execution_id: str,
+        *,
+        metadata: dict[str, object] | None = None,
+    ) -> Result[PipelineContext]:
+        """Cancel a running execution through the core execution system."""
+
+        if not isinstance(execution_id, str):
+            return Result.fail(
+                "INVALID_EXECUTION_ID",
+                "Execution ID must be a string.",
+            )
+
+        normalized_execution_id = execution_id.strip()
+
+        if not normalized_execution_id:
+            return Result.fail(
+                "INVALID_EXECUTION_ID",
+                "Execution ID cannot be empty.",
+            )
+
+        record = self._execution_system.cancel(
+            normalized_execution_id,
+            metadata=metadata,
+        )
+
+        if record.status == "cancelled":
+            return Result.fail(
+                "EXECUTION_CANCELLED",
+                "AI execution was cancelled.",
+                details={
+                    "execution_id": normalized_execution_id,
+                    "task_id": record.task_id,
+                },
+            )
+
+        return Result.fail(
+            "EXECUTION_CANCELLATION_FAILED",
+            "AI execution could not be cancelled.",
+            details={
+                "execution_id": normalized_execution_id,
+                "task_id": record.task_id,
+                "status": record.status,
+            },
+        )
     def reject_execution(
         self,
         execution_id: str,
