@@ -1,8 +1,8 @@
 ﻿"""
-Execution observability endpoints.
+Execution observability and cancellation endpoints.
 
 Provides authenticated, user-scoped access to live execution
-progress, observation snapshots, and audit records.
+progress, observation snapshots, audit records, and cancellation.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from api.deps import get_current_user, get_db
 from database.models.user import User
 from database.repositories.task_repository import TaskRepository
 from services.ai_execution_service import AIExecutionService
+from services.task_service import TaskService
 
 
 router = APIRouter(
@@ -54,7 +55,8 @@ def _get_owned_task(
     Resolve an execution to a durable Task owned by the current user.
 
     The durable Task is the authorization boundary. Runtime
-    observability is never exposed before ownership is verified.
+    observability and cancellation are never exposed before
+    ownership is verified.
     """
 
     normalized_execution_id = execution_id.strip()
@@ -203,6 +205,78 @@ def get_execution_audit(
             for record in records
         ],
     }
+
+
+@router.post(
+    "/{execution_id}/cancel",
+)
+def cancel_execution(
+    execution_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    service: AIExecutionService = Depends(
+        _get_ai_execution_service
+    ),
+) -> dict[str, Any]:
+    """
+    Cancel an execution owned by the current user.
+
+    Cancellation updates both the live execution runtime
+    and the durable Task record.
+    """
+
+    task = _get_owned_task(
+        execution_id=execution_id,
+        current_user=current_user,
+        db=db,
+    )
+
+    runtime_execution_id = task.execution_id or execution_id
+
+    # Preserve the lease owner before runtime cancellation changes
+    # the durable task state.
+    lease_owner_id = task.lease_owner_id
+
+    result = service.cancel_execution(
+        runtime_execution_id,
+    )
+
+    if result.error is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Execution cancellation returned an invalid result.",
+        )
+
+    if result.error.code == "EXECUTION_CANCELLED":
+        try:
+            TaskService(db).cancel_task(
+                task.id,
+                execution_id=runtime_execution_id,
+                lease_owner_id=lease_owner_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "TASK_CANCELLATION_FAILED",
+                    "message": str(exc),
+                },
+            ) from exc
+
+        return {
+            "execution_id": runtime_execution_id,
+            "task_id": task.id,
+            "status": "cancelled",
+            "message": "Execution cancelled successfully.",
+        }
+
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "code": result.error.code,
+            "message": result.error.message,
+        },
+    )
 
 
 __all__ = ["router"]
