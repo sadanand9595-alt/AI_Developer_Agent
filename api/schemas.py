@@ -1,4 +1,4 @@
-﻿"""
+"""
 Pydantic request/response schemas for the API layer.
 
 These are transport-layer contracts only. They validate external
@@ -12,13 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    EmailStr,
-    Field,
-    field_validator,
-)
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -91,8 +85,6 @@ class TaskResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Agents
 # ---------------------------------------------------------------------------
-
-
 class AgentCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     agent_type: str = Field(min_length=1, max_length=100)
@@ -130,10 +122,7 @@ class AgentUpdateRequest(BaseModel):
 
     @field_validator("name", "agent_type")
     @classmethod
-    def validate_non_blank(
-        cls,
-        value: str | None,
-    ) -> str | None:
+    def validate_non_blank(cls, value: str | None) -> str | None:
         if value is None:
             return None
 
@@ -175,26 +164,6 @@ class AgentExecuteResponse(BaseModel):
     status: str
     output: Any = None
     metadata: dict[str, Any]
-
-
-class AgentExecutionResponse(BaseModel):
-    """Durable execution history exposed through the Agent API."""
-
-    execution_id: str
-    task_id: str
-    agent_id: str
-    status: str
-    title: str
-    description: str
-    priority: int
-    retry_count: int
-    result: dict[str, Any] | None
-    error: dict[str, Any] | None
-    created_at: datetime
-    started_at: datetime | None
-    completed_at: datetime | None
-    updated_at: datetime
-
 
 # ---------------------------------------------------------------------------
 # Conversations
@@ -275,3 +244,21 @@ class ErrorDetail(BaseModel):
 
 class ErrorResponse(BaseModel):
     error: ErrorDetail
+
+class AgentExecutionResponse(BaseModel):
+    """Durable execution history exposed through the Agent API."""
+
+    execution_id: str
+    task_id: str
+    agent_id: str
+    status: str
+    title: str
+    description: str
+    priority: int
+    retry_count: int
+    result: dict[str, Any] | None
+    error: dict[str, Any] | None
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+    updated_at: datetime

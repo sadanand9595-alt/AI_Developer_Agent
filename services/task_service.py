@@ -10,6 +10,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from database.models.task import Task
+from core.types import TaskStatus
 from database.repositories.task_repository import TaskRepository
 
 
@@ -204,3 +205,60 @@ class TaskService:
             raise ValueError("Task not found.")
 
         return task
+    def retry_task(
+        self,
+        task_id: str,
+        *,
+        execution_id: str,
+        lease_owner_id: str | None = None,
+    ) -> Task:
+        """
+        Retry a failed task.
+
+        The retry receives a new execution identity and is atomically
+        transitioned from FAILED to RUNNING.
+        """
+
+        task = self._get_required_task(task_id)
+
+        if task.status != TaskStatus.FAILED.value:
+            raise ValueError(
+                "Only failed tasks can be retried."
+            )
+
+        if not isinstance(execution_id, str):
+            raise ValueError(
+                "execution_id must be a string."
+            )
+
+        normalized_execution_id = execution_id.strip()
+
+        if not normalized_execution_id:
+            raise ValueError(
+                "execution_id cannot be empty."
+            )
+
+        normalized_lease_owner_id = (
+            lease_owner_id.strip()
+            if isinstance(lease_owner_id, str)
+            else normalized_execution_id
+        )
+
+        if not normalized_lease_owner_id:
+            normalized_lease_owner_id = (
+                normalized_execution_id
+            )
+
+        if (
+            normalized_lease_owner_id
+            != normalized_execution_id
+        ):
+            raise ValueError(
+                "lease_owner_id must match execution_id."
+            )
+
+        return self._repository.retry_failed_task(
+            task,
+            normalized_execution_id,
+            lease_owner_id=normalized_lease_owner_id,
+        )

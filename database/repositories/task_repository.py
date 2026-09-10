@@ -714,6 +714,95 @@ class TaskRepository:
     # RETRY
     # ============================================================
 
+    def retry_failed_task(
+        self,
+        task: Task,
+        execution_id: str,
+        *,
+        lease_owner_id: str | None = None,
+        lease_ttl_seconds: int = DEFAULT_LEASE_TTL_SECONDS,
+    ) -> Task:
+        """
+        Atomically transition a failed task back to running.
+
+        A retry gets a new execution identity and a fresh execution
+        lease. The database performs the FAILED -> RUNNING transition
+        so concurrent retry attempts cannot both claim the task.
+        """
+
+        normalized_execution_id = (
+            self._normalize_execution_id(execution_id)
+        )
+
+        if normalized_execution_id is None:
+            raise ValueError(
+                "execution_id is required for retry."
+            )
+
+        normalized_lease_owner_id = (
+            self._normalize_lease_owner_id(
+                lease_owner_id
+            )
+            or normalized_execution_id
+        )
+
+        if (
+            normalized_lease_owner_id
+            != normalized_execution_id
+        ):
+            raise ValueError(
+                "lease_owner_id must match execution_id "
+                "when retrying a task."
+            )
+
+        now = datetime.now(timezone.utc)
+
+        lease_expires_at = (
+            now
+            + timedelta(
+                seconds=max(
+                    0,
+                    int(lease_ttl_seconds),
+                )
+            )
+        )
+
+        statement = (
+            update(Task)
+            .where(Task.id == task.id)
+            .where(
+                Task.status
+                == TaskStatus.FAILED.value
+            )
+            .values(
+                status=TaskStatus.RUNNING.value,
+                retry_count=Task.retry_count + 1,
+                execution_id=normalized_execution_id,
+                lease_owner_id=normalized_lease_owner_id,
+                started_at=now,
+                completed_at=None,
+                updated_at=now,
+                last_heartbeat_at=now,
+                lease_expires_at=lease_expires_at,
+                result_json=None,
+                error_json=None,
+            )
+            .execution_options(
+                synchronize_session=False
+            )
+        )
+
+        result = self._session.execute(statement)
+
+        if result.rowcount != 1:
+            raise ValueError(
+                "Task is not eligible for retry: "
+                f"{task.id}"
+            )
+
+        self._session.refresh(task)
+
+        return task
     def increment_retry(
         self,
         task: Task,
