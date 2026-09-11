@@ -262,3 +262,39 @@ class AgentExecutionResponse(BaseModel):
     started_at: datetime | None
     completed_at: datetime | None
     updated_at: datetime
+
+class ExecutionStatusResponse(BaseModel):
+    """Unified durable execution status."""
+
+    execution_id: str
+    task_id: str
+    agent_id: str | None
+    status: str
+    title: str
+    description: str
+    priority: int
+    retry_count: int
+    result: dict[str, Any] | None
+    error: dict[str, Any] | None
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+    updated_at: datetime
+
+class ExecutionStatusResponse(BaseModel):
+    """Unified durable execution status."""
+
+    execution_id: str
+    task_id: str
+    agent_id: str | None
+    status: str
+    title: str
+    description: str
+    priority: int
+    retry_count: int
+    result: dict[str, Any] | None
+    error: dict[str, Any] | None
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+    updated_at: datetime

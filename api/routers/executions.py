@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from api.deps import get_current_user, get_db
+from api.schemas import ExecutionStatusResponse
 from database.models.user import User
 from database.repositories.task_repository import TaskRepository
 from services.ai_execution_service import AIExecutionService
@@ -276,6 +277,44 @@ def cancel_execution(
             "code": result.error.code,
             "message": result.error.message,
         },
+    )
+@router.get(
+    "/{execution_id}",
+    response_model=ExecutionStatusResponse,
+)
+def get_execution_status(
+    execution_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ExecutionStatusResponse:
+    """
+    Return the unified durable status of an execution.
+
+    The durable Task is the authoritative source for execution
+    ownership and lifecycle status.
+    """
+
+    task = _get_owned_task(
+        execution_id=execution_id,
+        current_user=current_user,
+        db=db,
+    )
+
+    return ExecutionStatusResponse(
+        execution_id=task.execution_id or execution_id,
+        task_id=task.id,
+        agent_id=task.agent_id,
+        status=task.status,
+        title=task.title,
+        description=task.description,
+        priority=task.priority,
+        retry_count=task.retry_count,
+        result=task.result_json,
+        error=task.error_json,
+        created_at=task.created_at,
+        started_at=task.started_at,
+        completed_at=task.completed_at,
+        updated_at=task.updated_at,
     )
 
 
