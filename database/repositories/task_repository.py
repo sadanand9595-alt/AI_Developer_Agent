@@ -455,6 +455,189 @@ class TaskRepository:
     # APPROVAL PAUSE / RESUME
     # ============================================================
 
+    def mark_paused(
+        self,
+        task: Task,
+        execution_id: str | None = None,
+        *,
+        lease_owner_id: str | None = None,
+    ) -> Task:
+        """
+        Atomically pause a running task for manual continuation.
+
+        The execution identity is preserved, while the active worker
+        lease is released because a manually paused task does not
+        require an active execution worker.
+        """
+
+        normalized_execution_id = (
+            self._normalize_execution_id(execution_id)
+            or self._normalize_execution_id(
+                task.execution_id
+            )
+        )
+
+        normalized_lease_owner_id = (
+            self._normalize_lease_owner_id(
+                lease_owner_id
+            )
+            or self._normalize_lease_owner_id(
+                task.lease_owner_id
+            )
+        )
+
+        if normalized_execution_id is None:
+            raise ValueError(
+                "Task execution_id is required "
+                "before manual pause."
+            )
+
+        if normalized_lease_owner_id is None:
+            raise ValueError(
+                "Task lease_owner_id is required "
+                "before manual pause."
+            )
+
+        if (
+            normalized_lease_owner_id
+            != normalized_execution_id
+        ):
+            raise ValueError(
+                "lease_owner_id must match execution_id "
+                "before manual pause."
+            )
+
+        now = datetime.now(timezone.utc)
+
+        statement = (
+            update(Task)
+            .where(Task.id == task.id)
+            .where(
+                Task.status
+                == TaskStatus.RUNNING.value
+            )
+            .where(
+                Task.execution_id
+                == normalized_execution_id
+            )
+            .where(
+                Task.lease_owner_id
+                == normalized_lease_owner_id
+            )
+            .values(
+                status=TaskStatus.PAUSED.value,
+                updated_at=now,
+                lease_owner_id=None,
+                lease_expires_at=None,
+                last_heartbeat_at=None,
+            )
+            .execution_options(
+                synchronize_session=False
+            )
+        )
+
+        result = self._session.execute(statement)
+
+        if result.rowcount != 1:
+            raise ValueError(
+                "Task is not eligible for manual pause "
+                "with execution ownership: "
+                f"{task.id}"
+            )
+
+        self._session.refresh(task)
+
+        return task
+    def resume_paused(
+        self,
+        task: Task,
+        execution_id: str | None = None,
+        *,
+        lease_owner_id: str | None = None,
+        lease_ttl_seconds: int = DEFAULT_LEASE_TTL_SECONDS,
+    ) -> Task:
+        """
+        Atomically resume a manually paused task.
+
+        Resume preserves the execution identity and retry count while
+        acquiring a fresh execution lease.
+        """
+
+        normalized_execution_id = (
+            self._normalize_execution_id(execution_id)
+            or self._normalize_execution_id(
+                task.execution_id
+            )
+        )
+
+        normalized_lease_owner_id = (
+            self._normalize_lease_owner_id(
+                lease_owner_id
+            )
+            or normalized_execution_id
+        )
+
+        if normalized_execution_id is None:
+            raise ValueError(
+                "Task execution_id is required "
+                "before manual resume."
+            )
+
+        if normalized_lease_owner_id is None:
+            raise ValueError(
+                "Task lease_owner_id is required "
+                "before manual resume."
+            )
+
+        if (
+            normalized_lease_owner_id
+            != normalized_execution_id
+        ):
+            raise ValueError(
+                "lease_owner_id must match execution_id "
+                "before manual resume."
+            )
+
+        now = datetime.now(timezone.utc)
+        lease_expires_at = now + timedelta(
+            seconds=max(0, int(lease_ttl_seconds))
+        )
+
+        statement = (
+            update(Task)
+            .where(Task.id == task.id)
+            .where(
+                Task.status
+                == TaskStatus.PAUSED.value
+            )
+            .where(
+                Task.execution_id
+                == normalized_execution_id
+            )
+            .values(
+                status=TaskStatus.RUNNING.value,
+                updated_at=now,
+                lease_owner_id=normalized_lease_owner_id,
+                lease_expires_at=lease_expires_at,
+                last_heartbeat_at=now,
+            )
+            .execution_options(
+                synchronize_session=False
+            )
+        )
+
+        result = self._session.execute(statement)
+
+        if result.rowcount != 1:
+            raise ValueError(
+                "Task is not eligible to resume from "
+                "manual pause with execution identity: "
+                f"{task.id}"
+            )
+
+        self._session.refresh(task)
+
+        return task
     def mark_waiting_approval(
         self,
         task: Task,
@@ -1174,3 +1357,4 @@ class TaskRepository:
         self._session.refresh(task)
 
         return task
+

@@ -36,6 +36,7 @@ class TaskStatus(StrEnum):
     PENDING = "pending"
     PLANNING = "planning"
     RUNNING = "running"
+    PAUSED = "paused"
     WAITING_APPROVAL = "waiting_approval"
     VALIDATING = "validating"
     COMPLETED = "completed"
@@ -93,3 +94,4 @@ class PermissionAction(StrEnum):
     DELETE = "delete"
     EXECUTE = "execute"
     EXTERNAL = "external"
+

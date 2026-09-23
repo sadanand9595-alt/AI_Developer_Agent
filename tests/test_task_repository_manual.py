@@ -678,3 +678,362 @@ def test_task_repository_approval_resume_rejects_non_waiting_task():
 
         assert task.status == TaskStatus.RUNNING.value
         assert task.execution_id == execution_id
+
+def test_task_repository_manual_pause_preserves_execution_identity_and_releases_lease():
+    from database.repositories.task_repository import TaskRepository
+    from database.models.task import Task
+    from core.types import TaskStatus
+    from uuid import uuid4
+
+    with session_scope() as session:
+        user = UserRepository(session).create(
+            email=f"phase74-pause-{uuid4().hex}@example.com",
+            name="Phase 7.4 Pause Test User",
+            password_hash="phase74-password",
+        )
+
+        task = Task(
+            user_id=user.id,
+            title="Phase 7.4 Manual Pause",
+            description="Testing manual task pause.",
+            status=TaskStatus.PENDING.value,
+        )
+        session.add(task)
+        session.flush()
+
+        repository = TaskRepository(session)
+
+        execution_id = f"phase74-execution-{uuid4().hex}"
+
+        repository.mark_started(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+            lease_ttl_seconds=300,
+        )
+
+        original_retry_count = task.retry_count
+
+        paused = repository.mark_paused(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+        )
+
+        assert paused.status == TaskStatus.PAUSED.value
+        assert paused.execution_id == execution_id
+        assert paused.retry_count == original_retry_count
+
+        assert paused.lease_owner_id is None
+        assert paused.lease_expires_at is None
+        assert paused.last_heartbeat_at is None
+
+
+def test_task_repository_manual_pause_rejects_wrong_execution_owner():
+    from database.repositories.task_repository import TaskRepository
+    from database.models.task import Task
+    from core.types import TaskStatus
+    from uuid import uuid4
+
+    with session_scope() as session:
+        user = UserRepository(session).create(
+            email=f"phase74-owner-{uuid4().hex}@example.com",
+            name="Phase 7.4 Owner Test User",
+            password_hash="phase74-password",
+        )
+
+        task = Task(
+            user_id=user.id,
+            title="Phase 7.4 Wrong Pause Owner",
+            description="Testing manual pause ownership.",
+            status=TaskStatus.PENDING.value,
+        )
+        session.add(task)
+        session.flush()
+
+        repository = TaskRepository(session)
+
+        execution_id = f"phase74-execution-{uuid4().hex}"
+        wrong_execution_id = f"phase74-wrong-{uuid4().hex}"
+
+        repository.mark_started(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+        )
+
+        try:
+            repository.mark_paused(
+                task,
+                execution_id=wrong_execution_id,
+                lease_owner_id=wrong_execution_id,
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(
+                "Manual pause must reject a wrong execution owner."
+            )
+
+        session.refresh(task)
+
+        assert task.status == TaskStatus.RUNNING.value
+        assert task.execution_id == execution_id
+        assert task.lease_owner_id == execution_id
+
+
+def test_task_repository_manual_pause_rejects_non_running_task():
+    from database.repositories.task_repository import TaskRepository
+    from database.models.task import Task
+    from core.types import TaskStatus
+    from uuid import uuid4
+
+    with session_scope() as session:
+        user = UserRepository(session).create(
+            email=f"phase74-state-{uuid4().hex}@example.com",
+            name="Phase 7.4 State Test User",
+            password_hash="phase74-password",
+        )
+
+        task = Task(
+            user_id=user.id,
+            title="Phase 7.4 Invalid Pause State",
+            description="Testing invalid manual pause state.",
+            status=TaskStatus.PENDING.value,
+        )
+        session.add(task)
+        session.flush()
+
+        repository = TaskRepository(session)
+
+        try:
+            repository.mark_paused(
+                task,
+                execution_id="phase74-invalid-execution",
+                lease_owner_id="phase74-invalid-execution",
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(
+                "Manual pause must reject a non-running task."
+            )
+
+        session.refresh(task)
+
+        assert task.status == TaskStatus.PENDING.value
+
+
+def test_task_repository_manual_pause_is_distinct_from_approval_pause():
+    from database.repositories.task_repository import TaskRepository
+    from database.models.task import Task
+    from core.types import TaskStatus
+    from uuid import uuid4
+
+    with session_scope() as session:
+        user = UserRepository(session).create(
+            email=f"phase74-distinct-{uuid4().hex}@example.com",
+            name="Phase 7.4 Distinct State User",
+            password_hash="phase74-password",
+        )
+
+        task = Task(
+            user_id=user.id,
+            title="Phase 7.4 Distinct Pause States",
+            description="Testing manual pause versus approval pause.",
+            status=TaskStatus.PENDING.value,
+        )
+        session.add(task)
+        session.flush()
+
+        repository = TaskRepository(session)
+
+        execution_id = f"phase74-execution-{uuid4().hex}"
+
+        repository.mark_started(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+        )
+
+        repository.mark_paused(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+        )
+
+        assert task.status == TaskStatus.PAUSED.value
+        assert task.status != TaskStatus.WAITING_APPROVAL.value
+
+def test_task_repository_manual_pause_resume_preserves_execution_identity_and_acquires_fresh_lease():
+    from database.repositories.task_repository import TaskRepository
+    from database.models.task import Task
+    from core.types import TaskStatus
+    from uuid import uuid4
+
+    with session_scope() as session:
+        user = UserRepository(session).create(
+            email=f"phase74-resume-{uuid4().hex}@example.com",
+            name="Phase 7.4 Resume Test User",
+            password_hash="phase74-password",
+        )
+
+        task = Task(
+            user_id=user.id,
+            title="Phase 7.4 Manual Resume",
+            description="Testing manual pause resume.",
+            status=TaskStatus.PENDING.value,
+        )
+        session.add(task)
+        session.flush()
+
+        repository = TaskRepository(session)
+
+        execution_id = f"phase74-execution-{uuid4().hex}"
+
+        repository.mark_started(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+            lease_ttl_seconds=60,
+        )
+
+        original_retry_count = task.retry_count
+        original_lease_expires_at = task.lease_expires_at
+
+        repository.mark_paused(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+        )
+
+        assert task.status == TaskStatus.PAUSED.value
+        assert task.lease_owner_id is None
+        assert task.lease_expires_at is None
+        assert task.last_heartbeat_at is None
+
+        resumed = repository.resume_paused(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+            lease_ttl_seconds=300,
+        )
+
+        assert resumed.status == TaskStatus.RUNNING.value
+        assert resumed.execution_id == execution_id
+        assert resumed.lease_owner_id == execution_id
+        assert resumed.lease_expires_at is not None
+        assert resumed.last_heartbeat_at is not None
+        assert resumed.retry_count == original_retry_count
+        assert resumed.lease_expires_at != original_lease_expires_at
+
+
+def test_task_repository_manual_pause_resume_rejects_wrong_execution_identity():
+    from database.repositories.task_repository import TaskRepository
+    from database.models.task import Task
+    from core.types import TaskStatus
+    from uuid import uuid4
+
+    with session_scope() as session:
+        user = UserRepository(session).create(
+            email=f"phase74-resume-owner-{uuid4().hex}@example.com",
+            name="Phase 7.4 Resume Owner Test User",
+            password_hash="phase74-password",
+        )
+
+        task = Task(
+            user_id=user.id,
+            title="Phase 7.4 Wrong Resume Identity",
+            description="Testing manual resume ownership.",
+            status=TaskStatus.PENDING.value,
+        )
+        session.add(task)
+        session.flush()
+
+        repository = TaskRepository(session)
+
+        execution_id = f"phase74-execution-{uuid4().hex}"
+        wrong_execution_id = f"phase74-wrong-{uuid4().hex}"
+
+        repository.mark_started(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+        )
+
+        repository.mark_paused(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+        )
+
+        try:
+            repository.resume_paused(
+                task,
+                execution_id=wrong_execution_id,
+                lease_owner_id=wrong_execution_id,
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(
+                "Manual resume must reject a wrong execution identity."
+            )
+
+        session.refresh(task)
+
+        assert task.status == TaskStatus.PAUSED.value
+        assert task.execution_id == execution_id
+        assert task.lease_owner_id is None
+
+
+def test_task_repository_manual_pause_resume_rejects_non_paused_task():
+    from database.repositories.task_repository import TaskRepository
+    from database.models.task import Task
+    from core.types import TaskStatus
+    from uuid import uuid4
+
+    with session_scope() as session:
+        user = UserRepository(session).create(
+            email=f"phase74-resume-state-{uuid4().hex}@example.com",
+            name="Phase 7.4 Resume State Test User",
+            password_hash="phase74-password",
+        )
+
+        task = Task(
+            user_id=user.id,
+            title="Phase 7.4 Invalid Resume State",
+            description="Testing invalid manual resume state.",
+            status=TaskStatus.PENDING.value,
+        )
+        session.add(task)
+        session.flush()
+
+        repository = TaskRepository(session)
+
+        execution_id = f"phase74-execution-{uuid4().hex}"
+
+        repository.mark_started(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+        )
+
+        try:
+            repository.resume_paused(
+                task,
+                execution_id=execution_id,
+                lease_owner_id=execution_id,
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(
+                "Manual resume must reject a non-paused task."
+            )
+
+        session.refresh(task)
+
+        assert task.status == TaskStatus.RUNNING.value
+        assert task.execution_id == execution_id
+        assert task.lease_owner_id == execution_id

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Execution observability and cancellation endpoints.
 
 Provides authenticated, user-scoped access to live execution
@@ -278,6 +278,98 @@ def cancel_execution(
             "message": result.error.message,
         },
     )
+@router.post(
+    "/{execution_id}/pause",
+)
+def pause_execution(
+    execution_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    Manually pause an execution owned by the current user.
+
+    The durable Task is the authoritative lifecycle record.
+    Manual pause preserves execution identity and releases
+    the active worker lease.
+    """
+
+    task = _get_owned_task(
+        execution_id=execution_id,
+        current_user=current_user,
+        db=db,
+    )
+
+    runtime_execution_id = task.execution_id or execution_id
+
+    try:
+        paused = TaskService(db).pause(
+            task.id,
+            execution_id=runtime_execution_id,
+            lease_owner_id=task.lease_owner_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "TASK_PAUSE_FAILED",
+                "message": str(exc),
+            },
+        ) from exc
+
+    return {
+        "execution_id": runtime_execution_id,
+        "task_id": paused.id,
+        "status": paused.status,
+        "message": "Execution paused successfully.",
+    }
+
+
+@router.post(
+    "/{execution_id}/resume",
+)
+def resume_execution(
+    execution_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    Resume a manually paused execution owned by the current user.
+
+    Resume preserves execution identity and acquires a fresh
+    execution worker lease.
+    """
+
+    task = _get_owned_task(
+        execution_id=execution_id,
+        current_user=current_user,
+        db=db,
+    )
+
+    runtime_execution_id = task.execution_id or execution_id
+
+    try:
+        resumed = TaskService(db).resume_paused(
+            task.id,
+            execution_id=runtime_execution_id,
+            lease_owner_id=runtime_execution_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "TASK_RESUME_FAILED",
+                "message": str(exc),
+            },
+        ) from exc
+
+    return {
+        "execution_id": runtime_execution_id,
+        "task_id": resumed.id,
+        "status": resumed.status,
+        "message": "Execution resumed successfully.",
+    }
+
 @router.get(
     "/{execution_id}",
     response_model=ExecutionStatusResponse,
@@ -319,3 +411,4 @@ def get_execution_status(
 
 
 __all__ = ["router"]
+
