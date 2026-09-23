@@ -1,4 +1,4 @@
-"""
+﻿"""
 Task service for AI Command Center.
 
 Contains business logic for creating and managing the
@@ -182,6 +182,44 @@ class TaskService:
 
         return task
 
+    def pause_for_approval(
+        self,
+        task_id: str,
+        execution_id: str | None = None,
+        lease_owner_id: str | None = None,
+    ) -> Task:
+        """Pause a running task while waiting for approval."""
+
+        task = self._get_required_task(task_id)
+
+        self._repository.mark_waiting_approval(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=lease_owner_id,
+        )
+
+        return task
+
+    def resume_waiting_approval(
+        self,
+        task_id: str,
+        *,
+        execution_id: str | None = None,
+        lease_owner_id: str | None = None,
+        lease_ttl_seconds: int = 300,
+    ) -> Task:
+        """Resume a task that is waiting for approval."""
+
+        task = self._get_required_task(task_id)
+
+        self._repository.resume_waiting_approval(
+            task,
+            execution_id=execution_id,
+            lease_owner_id=lease_owner_id,
+            lease_ttl_seconds=lease_ttl_seconds,
+        )
+
+        return task
     def retry_task(
         self,
         task_id: str,
@@ -262,3 +300,4 @@ class TaskService:
             normalized_execution_id,
             lease_owner_id=normalized_lease_owner_id,
         )
+

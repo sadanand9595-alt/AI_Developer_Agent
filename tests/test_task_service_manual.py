@@ -85,3 +85,56 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+def test_task_service_approval_pause_and_resume_preserves_execution_identity():
+    from services.task_service import TaskService
+    from database.repositories.user_repository import UserRepository
+    from core.types import TaskStatus
+    from uuid import uuid4
+
+    with session_scope() as session:
+        user = UserRepository(session).create(
+            email=f"phase73-service-{uuid4().hex}@example.com",
+            name="Phase 7.3 Service Test User",
+            password_hash="phase73-password",
+        )
+
+        task_service = TaskService(session)
+
+        task = task_service.create_task(
+            user_id=user.id,
+            title="Phase 7.3 Service Resume",
+            description="Testing durable approval pause and resume through TaskService.",
+        )
+
+        execution_id = f"phase73-service-execution-{uuid4().hex}"
+
+        started = task_service.start_task(
+            task.id,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+        )
+
+        assert started.status == TaskStatus.RUNNING.value
+        assert started.execution_id == execution_id
+
+        waiting = task_service.pause_for_approval(
+            task.id,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+        )
+
+        assert waiting.status == TaskStatus.WAITING_APPROVAL.value
+        assert waiting.execution_id == execution_id
+        assert waiting.lease_owner_id is None
+
+        resumed = task_service.resume_waiting_approval(
+            task.id,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+        )
+
+        assert resumed.status == TaskStatus.RUNNING.value
+        assert resumed.execution_id == execution_id
+        assert resumed.lease_owner_id == execution_id
+        assert resumed.retry_count == 0
+

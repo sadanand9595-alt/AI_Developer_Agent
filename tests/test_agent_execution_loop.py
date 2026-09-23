@@ -1,4 +1,5 @@
-from __future__ import annotations
+﻿from __future__ import annotations
+from uuid import uuid4
 
 import json
 from types import SimpleNamespace
@@ -240,3 +241,113 @@ def test_approval_resume_recovers_after_coordinator_restart() -> None:
     )
     assert resumed.is_success()
     assert resumed.require_data().execution_id == context.execution_id
+
+def test_approval_updates_durable_task_lifecycle() -> None:
+    from database.repositories.user_repository import UserRepository
+    from database.session import session_scope
+    from core.types import TaskStatus
+    from services.task_service import TaskService
+
+    class ApprovalStore:
+        def __init__(self) -> None:
+            self.approval = None
+
+        def request_approval(self, **kwargs: object) -> SimpleNamespace:
+            self.approval = SimpleNamespace(
+                id="approval-durable-1",
+                status="pending",
+                execution_id=kwargs["execution_id"],
+                request_payload=kwargs["request_payload"],
+            )
+            return self.approval
+
+        def get_approval(
+            self,
+            approval_id: str,
+        ) -> SimpleNamespace | None:
+            return (
+                self.approval
+                if approval_id == "approval-durable-1"
+                else None
+            )
+
+    class ApprovalProvider(LoopProvider):
+        def generate(self, prompt: str) -> Result[str]:
+            if prompt.startswith("You are the planning"):
+                return Result.ok(
+                    '[{"name":"generate","description":"Generate code",'
+                    '"action":"generate_code","requires_approval":true,'
+                    '"metadata":{"objective_complete":true}}]'
+                )
+            return Result.ok("generated")
+
+    with session_scope() as session:
+        user = UserRepository(session).create(
+            email=f"phase73-ai-{uuid4().hex}@example.com",
+            name="Phase 7.3 AI Integration Test User",
+            password_hash="phase73-password",
+        )
+
+        task_service = TaskService(session)
+
+        task = task_service.create_task(
+            user_id=user.id,
+            title="Durable Approval Execution",
+            description="Testing AI approval integration.",
+        )
+
+        execution_id = f"phase73-ai-execution-{uuid4().hex}"
+
+        task_service.start_task(
+            task.id,
+            execution_id=execution_id,
+            lease_owner_id=execution_id,
+        )
+
+        context = PipelineContext(
+            execution_id=execution_id,
+            task_id=task.id,
+            user_id=user.id,
+        )
+
+        store = ApprovalStore()
+        service = _service(ApprovalProvider())
+
+        paused = service.execute(
+            "build it",
+            context=context,
+            approval_service=store,
+            task_service=task_service,
+        )
+
+        assert paused.is_failure()
+        assert paused.error.code == "APPROVAL_REQUIRED"
+
+        refreshed = task_service.get_task(task.id)
+
+        assert refreshed is not None
+        assert refreshed.execution_id == execution_id
+        assert refreshed.status == TaskStatus.WAITING_APPROVAL.value
+        assert refreshed.lease_owner_id is None
+
+        store.approval.status = "approved"
+
+        resumed = service.resume_approved_execution(
+            execution_id,
+            "approval-durable-1",
+            approval_service=store,
+            task_service=task_service,
+        )
+
+        assert resumed.is_success()
+        assert resumed.require_data().execution_id == execution_id
+
+        refreshed = task_service.get_task(task.id)
+
+        assert refreshed is not None
+        assert refreshed.execution_id == execution_id
+        assert refreshed.status == TaskStatus.RUNNING.value
+        assert refreshed.lease_owner_id == execution_id
+
+
+

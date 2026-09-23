@@ -10,10 +10,11 @@ from core.execution_system import ExecutionSystem
 from core.pipeline_context import PipelineContext
 from core.result import Result
 from services.approval_service import ApprovalService
+from services.task_service import TaskService
 
 
 class AIExecutionService:
-    """Plan a user request with AI and execute it through the core system."""
+    """Plan a user request with AI and execute it through the existing lifecycle."""
 
     def __init__(
         self,
@@ -37,6 +38,7 @@ class AIExecutionService:
         *,
         context: PipelineContext | None = None,
         approval_service: ApprovalService | None = None,
+        task_service: TaskService | None = None,
     ) -> Result[PipelineContext]:
         """Create an AI plan and execute it through the existing lifecycle."""
 
@@ -71,16 +73,20 @@ class AIExecutionService:
                 details=plan_result.error.details,
             )
 
+        steps = plan_result.require_data()
+
         result = self._execution_system.execute(
             request=normalized_request,
-            steps=plan_result.require_data(),
+            steps=steps,
             context=pipeline_context,
         )
+
         return self._handle_approval(
             result,
             pipeline_context,
             approval_service,
-            plan_steps=plan_result.require_data(),
+            plan_steps=steps,
+            task_service=task_service,
         )
 
     def execute_agent(
@@ -90,6 +96,7 @@ class AIExecutionService:
         context: PipelineContext | None = None,
         max_iterations: int | None = None,
         approval_service: ApprovalService | None = None,
+        task_service: TaskService | None = None,
     ) -> Result[PipelineContext]:
         """Run a bounded plan/execute/observe agent loop."""
 
@@ -111,6 +118,7 @@ class AIExecutionService:
             if max_iterations is None
             else max_iterations
         )
+
         if not isinstance(iteration_limit, int) or isinstance(
             iteration_limit, bool
         ) or iteration_limit < 1:
@@ -120,6 +128,7 @@ class AIExecutionService:
             )
 
         root_context = context or PipelineContext()
+
         if not isinstance(root_context, PipelineContext):
             return Result.fail(
                 "INVALID_PIPELINE_CONTEXT",
@@ -136,15 +145,20 @@ class AIExecutionService:
         for iteration in range(1, iteration_limit + 1):
             if root_context.get_metadata("cancel_requested") is True:
                 root_context.set_metadata("execution_status", "cancelled")
+
                 return Result.fail(
                     "EXECUTION_CANCELLED",
                     "AI execution was cancelled.",
-                    details={"execution_id": root_context.execution_id},
+                    details={
+                        "execution_id": root_context.execution_id,
+                    },
                 )
 
             plan_result = self._planner.create_plan(normalized_request)
+
             if plan_result.is_failure():
                 root_context.set_metadata("execution_status", "failed")
+
                 return Result.fail(
                     plan_result.error.code,
                     plan_result.error.message,
@@ -156,7 +170,9 @@ class AIExecutionService:
                 )
 
             steps = plan_result.require_data()
+
             iteration_context = root_context
+
             if iteration > 1:
                 iteration_context = PipelineContext(
                     execution_id=str(uuid4()),
@@ -165,6 +181,7 @@ class AIExecutionService:
                     agent_id=root_context.agent_id,
                     metadata=dict(root_context.metadata),
                 )
+
                 iteration_context.set_input(normalized_request)
                 iteration_context.set_metadata(
                     "request",
@@ -172,6 +189,7 @@ class AIExecutionService:
                 )
 
             iteration_context.set_metadata("iteration", iteration)
+
             execution_result = self._execution_system.execute(
                 request=normalized_request,
                 steps=steps,
@@ -181,15 +199,28 @@ class AIExecutionService:
             if execution_result.is_failure():
                 approval_result = self._handle_approval(
                     execution_result,
-                    root_context,
+                    iteration_context,
                     approval_service,
                     plan_steps=steps,
+                    task_service=task_service,
                 )
-                if approval_result.error and (
-                    approval_result.error.code == "APPROVAL_REQUIRED"
+
+                if (
+                    approval_result.error
+                    and approval_result.error.code == "APPROVAL_REQUIRED"
                 ):
+                    root_context.set_metadata(
+                        "execution_status",
+                        "waiting_approval",
+                    )
+
                     return approval_result
-                root_context.set_metadata("execution_status", "failed")
+
+                root_context.set_metadata(
+                    "execution_status",
+                    "failed",
+                )
+
                 return Result.fail(
                     approval_result.error.code,
                     approval_result.error.message,
@@ -201,25 +232,50 @@ class AIExecutionService:
                 )
 
             completed_context = execution_result.require_data()
-            root_context.metadata.update(completed_context.metadata)
-            root_context.stage_results.update(completed_context.stage_results)
-            root_context.set_output(completed_context.output_data)
-            root_context.set_metadata("iteration", iteration)
+
+            root_context.metadata.update(
+                completed_context.metadata
+            )
+
+            root_context.stage_results.update(
+                completed_context.stage_results
+            )
+
+            root_context.set_output(
+                completed_context.output_data
+            )
+
+            root_context.set_metadata(
+                "iteration",
+                iteration,
+            )
+
             root_context.set_metadata(
                 "last_plan_id",
                 completed_context.get_metadata("plan_id"),
             )
+
             plan_ids = root_context.get_metadata("plan_ids")
+
             if isinstance(plan_ids, list):
                 plan_id = completed_context.get_metadata("plan_id")
+
                 if isinstance(plan_id, str):
                     plan_ids.append(plan_id)
 
             if self._plan_is_complete(steps):
-                root_context.set_metadata("execution_status", "completed")
+                root_context.set_metadata(
+                    "execution_status",
+                    "completed",
+                )
+
                 return Result.ok(root_context)
 
-        root_context.set_metadata("execution_status", "failed")
+        root_context.set_metadata(
+            "execution_status",
+            "failed",
+        )
+
         return Result.fail(
             "AGENT_ITERATION_LIMIT",
             "AI execution reached the maximum iteration limit.",
@@ -231,7 +287,9 @@ class AIExecutionService:
         )
 
     @staticmethod
-    def _plan_is_complete(steps: list[dict[str, object]]) -> bool:
+    def _plan_is_complete(
+        steps: list[dict[str, object]],
+    ) -> bool:
         """Read the planner's explicit completion marker safely."""
 
         markers = [
@@ -244,8 +302,17 @@ class AIExecutionService:
             for step in steps
             if isinstance(step, dict)
         ]
-        explicit_markers = [marker for marker in markers if isinstance(marker, bool)]
-        return not explicit_markers or explicit_markers[-1] is True
+
+        explicit_markers = [
+            marker
+            for marker in markers
+            if isinstance(marker, bool)
+        ]
+
+        return (
+            not explicit_markers
+            or explicit_markers[-1] is True
+        )
 
     def _handle_approval(
         self,
@@ -253,13 +320,19 @@ class AIExecutionService:
         context: PipelineContext,
         approval_service: ApprovalService | None,
         plan_steps: list[dict[str, object]] | None = None,
+        task_service: TaskService | None = None,
     ) -> Result[PipelineContext]:
         """Persist an approval request when execution is paused."""
 
-        if result.is_success() or result.error.code != "APPROVAL_REQUIRED":
+        if (
+            result.is_success()
+            or result.error.code != "APPROVAL_REQUIRED"
+        ):
             return result
+
         if approval_service is None:
             approval_service = self._approval_service
+
         if approval_service is None or not context.user_id:
             return Result.fail(
                 "APPROVAL_PERSISTENCE_UNAVAILABLE",
@@ -268,23 +341,43 @@ class AIExecutionService:
             )
 
         details = result.error.details
+
         approval = approval_service.request_approval(
             user_id=context.user_id,
-            action=str(details.get("action", "unknown")),
+            action=str(
+                details.get(
+                    "action",
+                    "unknown",
+                )
+            ),
             reason=result.error.message,
             requested_operation=str(
-                details.get("step_name", "Approval-gated execution")
+                details.get(
+                    "step_name",
+                    "Approval-gated execution",
+                )
             ),
             execution_id=context.execution_id,
             plan_id=self._optional_value(
-                details.get("plan_id", context.get_metadata("plan_id"))
+                details.get(
+                    "plan_id",
+                    context.get_metadata("plan_id"),
+                )
             ),
-            step_id=str(details.get("step_id", "")),
+            step_id=str(
+                details.get(
+                    "step_id",
+                    "",
+                )
+            ),
             request_payload={
                 "execution_snapshot": {
                     "execution_id": context.execution_id,
                     "plan": details.get("plan"),
-                    "step_index": self._step_index(details, plan_steps),
+                    "step_index": self._step_index(
+                        details,
+                        plan_steps,
+                    ),
                     "context": {
                         "task_id": context.task_id,
                         "user_id": context.user_id,
@@ -292,11 +385,45 @@ class AIExecutionService:
                         "input_data": context.input_data,
                         "output_data": context.output_data,
                         "metadata": dict(context.metadata),
-                        "stage_results": dict(context.stage_results),
+                        "stage_results": dict(
+                            context.stage_results
+                        ),
                     },
                 },
             },
         )
+
+        # ---------------------------------------------------------
+        # DURABLE TASK LIFECYCLE
+        # RUNNING -> WAITING_APPROVAL
+        #
+        # The active lease is deliberately released while waiting
+        # for human approval. The same execution_id is preserved.
+        # ---------------------------------------------------------
+        if task_service is not None and context.task_id:
+            try:
+                task_service.pause_for_approval(
+                    context.task_id,
+                    execution_id=context.execution_id,
+                    lease_owner_id=context.execution_id,
+                )
+            except ValueError as exc:
+                return Result.fail(
+                    "DURABLE_TASK_PAUSE_FAILED",
+                    str(exc),
+                    details={
+                        **details,
+                        "execution_id": context.execution_id,
+                        "task_id": context.task_id,
+                        "approval_id": approval.id,
+                    },
+                )
+
+        context.set_metadata(
+            "execution_status",
+            "waiting_approval",
+        )
+
         return Result.fail(
             "APPROVAL_REQUIRED",
             result.error.message,
@@ -315,28 +442,45 @@ class AIExecutionService:
         approval_id: str,
         *,
         approval_service: ApprovalService | None = None,
+        task_service: TaskService | None = None,
     ) -> Result[PipelineContext]:
         """Validate and resume an approved execution."""
 
         service = approval_service or self._approval_service
+
         if service is None:
             return Result.fail(
                 "APPROVAL_PERSISTENCE_UNAVAILABLE",
                 "Approval storage is required to resume execution.",
             )
-        approval = service.get_approval(approval_id)
-        if approval is None or approval.execution_id != execution_id:
+
+        approval = service.get_approval(
+            approval_id
+        )
+
+        if (
+            approval is None
+            or approval.execution_id != execution_id
+        ):
             return Result.fail(
                 "APPROVAL_NOT_FOUND",
                 "Approval request not found.",
             )
+
         if approval.status != "approved":
             return Result.fail(
                 "APPROVAL_NOT_APPROVED",
                 "Approval request is not approved.",
             )
+
         payload = approval.request_payload
-        if self._execution_system.coordinator.get(execution_id) is None:
+
+        if (
+            self._execution_system.coordinator.get(
+                execution_id
+            )
+            is None
+        ):
             if (
                 not isinstance(payload, dict)
                 or not isinstance(
@@ -348,19 +492,78 @@ class AIExecutionService:
                     "INVALID_EXECUTION_SNAPSHOT",
                     "Approval does not contain execution recovery data.",
                 )
-            restored = self._execution_system.coordinator.restore_paused_execution(
-                payload["execution_snapshot"]
+
+            restored = (
+                self._execution_system.coordinator.restore_paused_execution(
+                    payload["execution_snapshot"]
+                )
             )
+
             if restored.is_failure():
                 return Result.fail(
                     restored.error.code,
                     restored.error.message,
                     details=restored.error.details,
                 )
-        return self._execution_system.coordinator.resume_approved(
-            execution_id,
-            approval_id,
+
+        # ---------------------------------------------------------
+        # RUNTIME RESUME
+        # ---------------------------------------------------------
+        runtime_result = (
+            self._execution_system.coordinator.resume_approved(
+                execution_id,
+                approval_id,
+            )
         )
+
+        if runtime_result.is_failure():
+            return Result.fail(
+                runtime_result.error.code,
+                runtime_result.error.message,
+                details=runtime_result.error.details,
+            )
+
+        # ---------------------------------------------------------
+        # DURABLE TASK LIFECYCLE
+        # WAITING_APPROVAL -> RUNNING
+        #
+        # Same execution_id.
+        # Fresh lease.
+        # retry_count remains unchanged.
+        # ---------------------------------------------------------
+        if task_service is not None:
+            task = task_service.get_task_by_execution_id(
+                execution_id
+            )
+
+            if task is None:
+                return Result.fail(
+                    "DURABLE_TASK_NOT_FOUND",
+                    "Durable task not found for execution.",
+                    details={
+                        "execution_id": execution_id,
+                        "approval_id": approval_id,
+                    },
+                )
+
+            try:
+                task_service.resume_waiting_approval(
+                    task.id,
+                    execution_id=execution_id,
+                    lease_owner_id=execution_id,
+                )
+            except ValueError as exc:
+                return Result.fail(
+                    "DURABLE_TASK_RESUME_FAILED",
+                    str(exc),
+                    details={
+                        "execution_id": execution_id,
+                        "task_id": task.id,
+                        "approval_id": approval_id,
+                    },
+                )
+
+        return runtime_result
 
     @staticmethod
     def _step_index(
@@ -368,27 +571,40 @@ class AIExecutionService:
         plan_steps: list[dict[str, object]] | None,
     ) -> int:
         step_id = details.get("step_id")
+
         serialized_plan = details.get("plan")
+
         if isinstance(serialized_plan, dict):
-            serialized_steps = serialized_plan.get("steps")
+            serialized_steps = serialized_plan.get(
+                "steps"
+            )
+
             if isinstance(serialized_steps, list):
-                for index, step in enumerate(serialized_steps):
+                for index, step in enumerate(
+                    serialized_steps
+                ):
                     if (
                         isinstance(step, dict)
                         and step.get("step_id") == step_id
                     ):
                         return index
+
         if isinstance(plan_steps, list):
-            for index, step in enumerate(plan_steps):
+            for index, step in enumerate(
+                plan_steps
+            ):
                 if (
                     isinstance(step, dict)
                     and step.get("step_id") == step_id
                 ):
                     return index
+
         return 0
 
     @staticmethod
-    def _optional_value(value: object) -> str | None:
+    def _optional_value(
+        value: object,
+    ) -> str | None:
         return value if isinstance(value, str) else None
 
     def cancel_execution(
@@ -437,6 +653,7 @@ class AIExecutionService:
                 "status": record.status,
             },
         )
+
     def reject_execution(
         self,
         execution_id: str,
@@ -446,25 +663,51 @@ class AIExecutionService:
     ) -> Result[PipelineContext]:
         """Terminate an execution after approval rejection."""
 
-        service = approval_service or self._approval_service
+        service = (
+            approval_service
+            or self._approval_service
+        )
+
         if service is None:
             return Result.fail(
                 "APPROVAL_PERSISTENCE_UNAVAILABLE",
                 "Approval storage is required to reject execution.",
             )
-        approval = service.get_approval(approval_id)
-        if approval is None or approval.execution_id != execution_id:
-            return Result.fail("APPROVAL_NOT_FOUND", "Approval request not found.")
+
+        approval = service.get_approval(
+            approval_id
+        )
+
+        if (
+            approval is None
+            or approval.execution_id != execution_id
+        ):
+            return Result.fail(
+                "APPROVAL_NOT_FOUND",
+                "Approval request not found.",
+            )
+
         if approval.status != "rejected":
-            return Result.fail("APPROVAL_NOT_REJECTED", "Approval is not rejected.")
+            return Result.fail(
+                "APPROVAL_NOT_REJECTED",
+                "Approval is not rejected.",
+            )
+
         self._execution_system.cancel(
             execution_id,
-            metadata={"approval_id": approval_id, "rejected": True},
+            metadata={
+                "approval_id": approval_id,
+                "rejected": True,
+            },
         )
+
         return Result.fail(
             "APPROVAL_REJECTED",
             "Execution was rejected by human approval.",
-            details={"execution_id": execution_id, "approval_id": approval_id},
+            details={
+                "execution_id": execution_id,
+                "approval_id": approval_id,
+            },
         )
 
 

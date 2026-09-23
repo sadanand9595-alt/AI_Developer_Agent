@@ -23,6 +23,8 @@ from database.models.approval import ApprovalRequest
 from database.models.user import User
 from services.approval_service import ApprovalService
 from services.ai_execution_service import AIExecutionService
+from services.ai_execution_service import AIExecutionService
+from services.task_service import TaskService
 
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
@@ -131,17 +133,17 @@ def approve_request(
 
 
 @router.post(
-    "/{approval_id}/reject",
+    "/{approval_id}/approve",
     response_model=None,
 )
-def reject_request(
+def approve_request(
     approval_id: str,
     payload: ApprovalActionRequest,
     request: Request,
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ) -> dict:
-    """Reject a pending request (administrator only)."""
+    """Approve a pending request (administrator only)."""
 
     service = ApprovalService(db)
 
@@ -151,28 +153,40 @@ def reject_request(
             detail="Approval request not found.",
         )
 
-    approval = service.reject(
+    approval = service.approve(
         approval_id,
         reviewer_id=admin.id,
         comment=payload.comment,
     )
+
     ai_service = getattr(
         request.app.state,
         "ai_execution_service",
         None,
     )
-    if approval.execution_id and isinstance(ai_service, AIExecutionService):
-        result = ai_service.reject_execution(
+
+    if approval.execution_id and isinstance(
+        ai_service,
+        AIExecutionService,
+    ):
+        task_service = TaskService(db)
+
+        result = ai_service.resume_approved_execution(
             approval.execution_id,
             approval.id,
             approval_service=service,
+            task_service=task_service,
         )
+
         return {
             "approval": approval,
             "execution_status": (
-                "cancelled" if result.is_failure() else "completed"
+                "completed"
+                if result.is_success()
+                else result.error.code
             ),
             "execution_id": approval.execution_id,
             "plan_id": approval.plan_id,
         }
+
     return approval

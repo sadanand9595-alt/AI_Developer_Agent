@@ -1,52 +1,53 @@
 ﻿"""
-Agent-aware AI execution service for AI Command Center.
+Agent-aware AI execution service.
 
-Bridges persistent Agent records and the existing autonomous
-AI execution pipeline without putting AI-specific logic into
-AgentRuntime itself.
+Provides the application-level bridge between AgentRuntimeService and
+the autonomous AI execution pipeline.
+
+Responsibilities:
+- Resolve and validate the requested Agent.
+- Resolve the Agent runtime.
+- Build and enrich the PipelineContext used by the AI pipeline.
+- Build the immutable ExecutionContext required by AgentRuntime.
+- Execute the AI pipeline inside the controlled AgentRuntime boundary.
+- Preserve execution/task identity.
+- Forward durable TaskService when available.
 """
 
 from __future__ import annotations
 
+from typing import Any
+
+from core.context import ExecutionContext
 from core.pipeline_context import PipelineContext
 from core.result import Result
 from services.agent_runtime_service import AgentRuntimeService
 from services.ai_execution_service import AIExecutionService
+from services.task_service import TaskService
 
 
 class AgentAIExecutionService:
     """
-    Execute AI requests through registered persistent Agents.
+    Execute an Agent through the controlled runtime and autonomous
+    AI execution pipeline.
 
-    The persistent Agent provides configuration and execution
-    limits. AgentRuntime remains responsible for lifecycle
-    management, while AIExecutionService remains responsible
-    for planning, execution, observation, and replanning.
+    AgentRuntimeService owns persistent Agent validation and runtime
+    resolution.
+
+    AgentRuntime owns lifecycle transitions and the immutable
+    ExecutionContext boundary.
+
+    AIExecutionService owns planning, iteration, approval handling,
+    and autonomous execution.
     """
 
     def __init__(
         self,
-        ai_execution_service: AIExecutionService,
         agent_runtime_service: AgentRuntimeService,
+        ai_execution_service: AIExecutionService,
     ) -> None:
-        if not isinstance(
-            ai_execution_service,
-            AIExecutionService,
-        ):
-            raise TypeError(
-                "Expected an AIExecutionService instance."
-            )
-
-        if not isinstance(
-            agent_runtime_service,
-            AgentRuntimeService,
-        ):
-            raise TypeError(
-                "Expected an AgentRuntimeService instance."
-            )
-
-        self._ai_execution_service = ai_execution_service
         self._agent_runtime_service = agent_runtime_service
+        self._ai_execution_service = ai_execution_service
 
     def execute(
         self,
@@ -54,36 +55,56 @@ class AgentAIExecutionService:
         agent_id: str,
         request: str,
         context: PipelineContext | None = None,
+        task_service: TaskService | None = None,
     ) -> Result[PipelineContext]:
-        """Execute a request through a registered autonomous Agent."""
+        """
+        Execute an Agent request through the controlled runtime.
 
-        if not isinstance(agent_id, str):
-            return Result.fail(
-                "INVALID_AGENT_ID",
-                "Agent ID must be a string.",
-            )
+        Args:
+            agent_id:
+                Registered Agent identifier.
 
-        normalized_agent_id = agent_id.strip()
+            request:
+                Natural-language execution request.
+
+            context:
+                Optional existing PipelineContext. When supplied,
+                its execution/task/user identity is preserved.
+
+            task_service:
+                Optional durable TaskService. When supplied, it is
+                forwarded to AIExecutionService so approval-gated
+                executions can transition their durable Task.
+
+        Returns:
+            Result containing the final PipelineContext or an error.
+        """
+
+        normalized_agent_id = self._normalize_agent_id(
+            agent_id
+        )
 
         if not normalized_agent_id:
             return Result.fail(
                 "INVALID_AGENT_ID",
-                "Agent ID cannot be empty.",
+                "Agent ID is required.",
+                details={
+                    "agent_id": agent_id,
+                },
             )
 
-        if not isinstance(request, str):
+        if not isinstance(request, str) or not request.strip():
             return Result.fail(
-                "INVALID_AI_EXECUTION_REQUEST",
-                "AI execution request must be a string.",
+                "INVALID_AGENT_REQUEST",
+                "Agent execution request is required.",
+                details={
+                    "agent_id": normalized_agent_id,
+                },
             )
 
-        normalized_request = request.strip()
-
-        if not normalized_request:
-            return Result.fail(
-                "EMPTY_AI_EXECUTION_REQUEST",
-                "AI execution request cannot be empty.",
-            )
+        # ---------------------------------------------------------------
+        # 1. Resolve persistent Agent
+        # ---------------------------------------------------------------
 
         agent_result = self._agent_runtime_service.get_agent(
             normalized_agent_id
@@ -98,22 +119,24 @@ class AgentAIExecutionService:
 
         agent = agent_result.require_data()
 
-        if (
-            not isinstance(agent.max_iterations, int)
-            or isinstance(agent.max_iterations, bool)
-            or agent.max_iterations < 1
-        ):
-            return Result.fail(
-                "INVALID_AGENT_CONFIGURATION",
-                "Agent max_iterations must be a positive integer.",
-                details={
-                    "agent_id": normalized_agent_id,
-                    "max_iterations": agent.max_iterations,
-                },
-            )
+        # ---------------------------------------------------------------
+        # 2. Build PipelineContext for AI execution
+        # ---------------------------------------------------------------
+
+        pipeline_context = self._build_pipeline_context(
+            context=context,
+            agent=agent,
+            request=request.strip(),
+        )
+
+        normalized_request = request.strip()
+
+        # ---------------------------------------------------------------
+        # 3. Resolve controlled AgentRuntime
+        # ---------------------------------------------------------------
 
         runtime_result = self._agent_runtime_service.get_runtime(
-            normalized_agent_id
+            agent.id
         )
 
         if runtime_result.is_failure():
@@ -125,24 +148,152 @@ class AgentAIExecutionService:
 
         runtime = runtime_result.require_data()
 
-        pipeline_context = context or PipelineContext()
+        # ---------------------------------------------------------------
+        # 4. Build immutable ExecutionContext
+        #
+        # AgentRuntime requires ExecutionContext.
+        # AIExecutionService continues to use PipelineContext.
+        # ---------------------------------------------------------------
 
-        if not isinstance(
-            pipeline_context,
-            PipelineContext,
-        ):
+        try:
+            execution_context = self._build_execution_context(
+                pipeline_context=pipeline_context,
+                agent_id=agent.id,
+            )
+        except Exception as exc:
             return Result.fail(
-                "INVALID_PIPELINE_CONTEXT",
-                "Expected a PipelineContext instance.",
+                "EXECUTION_CONTEXT_ERROR",
+                str(exc),
+                details={
+                    "agent_id": agent.id,
+                    "execution_id": pipeline_context.execution_id,
+                    "task_id": pipeline_context.task_id,
+                },
             )
 
-        pipeline_context.set_input(
-            normalized_request
-        )
+        # ---------------------------------------------------------------
+        # 5. AI operation executed inside AgentRuntime
+        # ---------------------------------------------------------------
 
-        pipeline_context.set_metadata(
-            "request",
-            normalized_request,
+        def _operation(
+            runtime_context: ExecutionContext,
+        ) -> Result[PipelineContext]:
+            """
+            Execute the autonomous AI pipeline.
+
+            AgentRuntime supplies the immutable ExecutionContext.
+            The AI pipeline intentionally continues using the existing
+            PipelineContext abstraction.
+
+            The execution identity is already shared between both
+            contexts, so no new execution ID is generated here.
+            """
+
+            # Keep the existing PipelineContext as the AI pipeline
+            # context. The AgentRuntime ExecutionContext remains the
+            # lifecycle/security boundary.
+            #
+            # This is important because PipelineContext is mutable and
+            # carries AI pipeline output/stage metadata, while
+            # ExecutionContext is intentionally immutable.
+            pipeline_context.set_metadata(
+                "runtime_execution_id",
+                str(runtime_context.execution_id),
+            )
+
+            execute_kwargs: dict[str, Any] = {
+                "context": pipeline_context,
+                "max_iterations": agent.max_iterations,
+            }
+
+            # Phase 7.3 durable lifecycle bridge.
+            #
+            # Only pass task_service when available. This keeps existing
+            # lightweight callers and test doubles compatible with the
+            # pre-Phase-7.3 execute_agent() signature.
+            if task_service is not None:
+                execute_kwargs["task_service"] = task_service
+
+            return self._ai_execution_service.execute_agent(
+                normalized_request,
+                **execute_kwargs,
+            )
+
+        # ---------------------------------------------------------------
+        # 6. Execute through controlled AgentRuntime
+        # ---------------------------------------------------------------
+
+        try:
+            runtime_execution = runtime.execute(
+                context=execution_context,
+                operation=_operation,
+            )
+        except Exception as exc:
+            return Result.fail(
+                "AGENT_EXECUTION_ERROR",
+                str(exc),
+                details={
+                    "agent_id": agent.id,
+                    "execution_id": pipeline_context.execution_id,
+                    "task_id": pipeline_context.task_id,
+                },
+            )
+
+        if runtime_execution is None:
+            return Result.fail(
+                "AGENT_EXECUTION_ERROR",
+                "Agent runtime returned no execution result.",
+                details={
+                    "agent_id": agent.id,
+                    "execution_id": pipeline_context.execution_id,
+                    "task_id": pipeline_context.task_id,
+                },
+            )
+
+        execution_result = runtime_execution.result
+
+        if not isinstance(
+            execution_result,
+            Result,
+        ):
+            return Result.fail(
+                "AGENT_EXECUTION_ERROR",
+                "Agent runtime returned an invalid execution result.",
+                details={
+                    "agent_id": agent.id,
+                    "execution_id": pipeline_context.execution_id,
+                    "task_id": pipeline_context.task_id,
+                },
+            )
+
+        return execution_result
+
+    def _build_pipeline_context(
+        self,
+        *,
+        context: PipelineContext | None,
+        agent: Any,
+        request: str,
+    ) -> PipelineContext:
+        """
+        Build or enrich the mutable PipelineContext used by AI execution.
+
+        Existing execution/task/user identity is preserved.
+        """
+
+        if context is None:
+            pipeline_context = PipelineContext(
+                user_id=None,
+                agent_id=agent.id,
+            )
+        else:
+            pipeline_context = context
+
+            if not pipeline_context.agent_id:
+                pipeline_context.agent_id = agent.id
+
+        pipeline_context.set_input(
+            request
         )
 
         pipeline_context.set_metadata(
@@ -167,12 +318,12 @@ class AgentAIExecutionService:
 
         pipeline_context.set_metadata(
             "capabilities",
-            list(agent.capabilities or []),
+            agent.capabilities,
         )
 
         pipeline_context.set_metadata(
             "agent_configuration",
-            dict(agent.configuration or {}),
+            agent.configuration,
         )
 
         pipeline_context.set_metadata(
@@ -185,67 +336,61 @@ class AgentAIExecutionService:
             True,
         )
 
-        def _operation(_execution_context) -> Result[PipelineContext]:
-            return self._ai_execution_service.execute_agent(
-                normalized_request,
-                context=pipeline_context,
-                max_iterations=agent.max_iterations,
-            )
-
-        execution = runtime.execute(
-            context=self._build_runtime_context(
-                pipeline_context,
-                agent.id,
-            ),
-            operation=_operation,
-        )
-
-        if execution.result.is_failure():
-            return Result.fail(
-                execution.result.error.code,
-                execution.result.error.message,
-                details=execution.result.error.details,
-            )
-
-        result_context = execution.result.require_data()
-
-        result_context.set_metadata(
-            "agent_runtime_status",
-            execution.status.value,
-        )
-
-        result_context.set_metadata(
-            "agent_id",
-            agent.id,
-        )
-
-        return Result.ok(result_context)
+        return pipeline_context
 
     @staticmethod
-    def _build_runtime_context(
-        context: PipelineContext,
+    def _build_execution_context(
+        *,
+        pipeline_context: PipelineContext,
         agent_id: str,
-    ):
+    ) -> ExecutionContext:
         """
-        Build the ExecutionContext required by AgentRuntime.
+        Convert the existing PipelineContext identity into the immutable
+        ExecutionContext required by AgentRuntime.
 
-        The AI pipeline continues using PipelineContext; the
-        runtime receives only the lifecycle/execution boundary
-        context required by AgentRuntime.
+        The execution ID is preserved exactly. No new execution identity
+        is generated.
         """
 
-        from core.context import ExecutionContext
+        if not pipeline_context.user_id:
+            raise ValueError(
+                "PipelineContext requires a user_id for Agent execution."
+            )
+
+        if not pipeline_context.task_id:
+            raise ValueError(
+                "PipelineContext requires a task_id for Agent execution."
+            )
 
         return ExecutionContext.create(
-            user_id=context.user_id,
-            task_id=context.task_id,
+            user_id=str(
+                pipeline_context.user_id
+            ),
+            task_id=str(
+                pipeline_context.task_id
+            ),
             agent_id=agent_id,
-            execution_id=context.execution_id,
-            metadata={
-                "ai_execution": True,
-                "agent_id": agent_id,
-            },
+            execution_id=str(
+                pipeline_context.execution_id
+            ),
+            lease_owner_id=str(
+                pipeline_context.execution_id
+            ),
+            metadata=dict(
+                pipeline_context.metadata
+            ),
         )
+
+    @staticmethod
+    def _normalize_agent_id(
+        agent_id: str,
+    ) -> str:
+        """Normalize an Agent identifier before lookup."""
+
+        if not isinstance(agent_id, str):
+            return ""
+
+        return agent_id.strip()
 
 
 __all__ = ["AgentAIExecutionService"]
