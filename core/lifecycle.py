@@ -41,8 +41,15 @@ class TaskLifecycle:
         TaskStatus.RUNNING: frozenset(
             {
                 TaskStatus.WAITING_APPROVAL,
+                TaskStatus.PAUSED,
                 TaskStatus.VALIDATING,
                 TaskStatus.FAILED,
+                TaskStatus.CANCELLED,
+            }
+        ),
+        TaskStatus.PAUSED: frozenset(
+            {
+                TaskStatus.RUNNING,
                 TaskStatus.CANCELLED,
             }
         ),
@@ -70,6 +77,36 @@ class TaskLifecycle:
         ),
         TaskStatus.CANCELLED: frozenset(),
     }
+
+    @classmethod
+    def allowed_targets(
+        cls,
+        current: TaskStatus,
+    ) -> frozenset[TaskStatus]:
+        """Return the immutable set of valid target states."""
+
+        if not isinstance(current, TaskStatus):
+            return frozenset()
+
+        return cls._TRANSITIONS.get(
+            current,
+            frozenset(),
+        )
+
+    @classmethod
+    def create_transition(
+        cls,
+        current: TaskStatus,
+        target: TaskStatus,
+    ) -> LifecycleTransition:
+        """Validate and create an immutable lifecycle transition."""
+
+        cls.transition(current, target)
+
+        return LifecycleTransition(
+            source=current.value,
+            target=target.value,
+        )
 
     @classmethod
     def can_transition(
