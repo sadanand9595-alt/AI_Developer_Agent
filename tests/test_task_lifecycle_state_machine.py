@@ -84,3 +84,22 @@ def test_task_lifecycle_rejects_non_task_status_values() -> None:
         raise AssertionError(
             "Non-TaskStatus source must be rejected."
         )
+
+
+def test_pending_task_can_transition_directly_to_running() -> None:
+    assert TaskLifecycle.can_transition(
+        TaskStatus.PENDING,
+        TaskStatus.RUNNING,
+    )
+
+    transition = TaskLifecycle.create_transition(
+        TaskStatus.PENDING,
+        TaskStatus.RUNNING,
+    )
+
+    assert transition.source == TaskStatus.PENDING.value
+    assert transition.target == TaskStatus.RUNNING.value
+
+    assert TaskStatus.RUNNING in TaskLifecycle.allowed_targets(
+        TaskStatus.PENDING,
+    )

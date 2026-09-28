@@ -28,6 +28,7 @@ class TaskLifecycle:
         TaskStatus.PENDING: frozenset(
             {
                 TaskStatus.PLANNING,
+                TaskStatus.RUNNING,
                 TaskStatus.CANCELLED,
             }
         ),
