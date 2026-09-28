@@ -58,6 +58,7 @@ def test_task_lifecycle_lists_allowed_targets() -> None:
             TaskStatus.PAUSED,
             TaskStatus.WAITING_APPROVAL,
             TaskStatus.VALIDATING,
+            TaskStatus.COMPLETED,
             TaskStatus.FAILED,
             TaskStatus.CANCELLED,
         }
@@ -102,4 +103,10 @@ def test_pending_task_can_transition_directly_to_running() -> None:
 
     assert TaskStatus.RUNNING in TaskLifecycle.allowed_targets(
         TaskStatus.PENDING,
+    )
+
+def test_running_can_transition_directly_to_completed() -> None:
+    assert TaskLifecycle.can_transition(
+        TaskStatus.RUNNING,
+        TaskStatus.COMPLETED,
     )

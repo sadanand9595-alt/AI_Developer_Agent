@@ -44,6 +44,7 @@ class TaskLifecycle:
                 TaskStatus.WAITING_APPROVAL,
                 TaskStatus.PAUSED,
                 TaskStatus.VALIDATING,
+                TaskStatus.COMPLETED,
                 TaskStatus.FAILED,
                 TaskStatus.CANCELLED,
             }

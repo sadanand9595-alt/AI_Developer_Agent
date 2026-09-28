@@ -7,9 +7,11 @@ agent execution.
 
 from __future__ import annotations
 
+from core.lifecycle import TaskLifecycle
+from core.result import Result
+from core.types import TaskStatus
 from database.models.task import Task
 from database.repositories.task_repository import TaskRepository
-from core.result import Result
 
 
 class ExecutionStateService:
@@ -18,6 +20,24 @@ class ExecutionStateService:
     def __init__(self, repository: TaskRepository) -> None:
         self._repository = repository
 
+    @staticmethod
+    def _validate_transition(
+        task: Task,
+        target: TaskStatus,
+    ) -> None:
+        """Reject invalid lifecycle transitions before repository calls."""
+
+        current_value = getattr(task, "status", None)
+
+        try:
+            current = TaskStatus(current_value)
+        except (ValueError, TypeError):
+            raise ValueError(
+                f"Unknown task status: {current_value!r}"
+            ) from None
+
+        TaskLifecycle.transition(current, target)
+
     def mark_success(
         self,
         task: Task,
@@ -25,9 +45,14 @@ class ExecutionStateService:
         execution_id: str | None = None,
         lease_owner_id: str | None = None,
     ) -> Result[Task]:
-        """Mark a task as completed."""
+        """Mark a running task as completed."""
 
         try:
+            self._validate_transition(
+                task,
+                TaskStatus.COMPLETED,
+            )
+
             self._repository.mark_completed(
                 task,
                 result,
@@ -54,9 +79,14 @@ class ExecutionStateService:
         execution_id: str | None = None,
         lease_owner_id: str | None = None,
     ) -> Result[Task]:
-        """Mark a task as failed."""
+        """Mark a running task as failed."""
 
         try:
+            self._validate_transition(
+                task,
+                TaskStatus.FAILED,
+            )
+
             self._repository.mark_failed(
                 task,
                 error,
@@ -80,7 +110,7 @@ class ExecutionStateService:
         self,
         task: Task,
     ) -> Result[Task]:
-        """Increment the retry count for a task."""
+        """Increment the retry count without changing task status."""
 
         try:
             self._repository.increment_retry(task)
@@ -102,9 +132,14 @@ class ExecutionStateService:
         execution_id: str | None = None,
         lease_owner_id: str | None = None,
     ) -> Result[Task]:
-        """Mark a task as started."""
+        """Start a pending or failed task."""
 
         try:
+            self._validate_transition(
+                task,
+                TaskStatus.RUNNING,
+            )
+
             self._repository.mark_started(
                 task,
                 execution_id,
