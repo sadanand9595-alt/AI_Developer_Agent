@@ -164,6 +164,26 @@ class TaskService:
         )
 
         return task
+
+    def save_orchestration_checkpoint(
+        self,
+        task_id: str,
+        checkpoint: dict,
+        *,
+        execution_id: str,
+        lease_owner_id: str,
+    ) -> Task:
+        """Persist an orchestration checkpoint for the task owner."""
+
+        task = self._get_required_task(task_id)
+
+        return self._repository.save_orchestration_checkpoint(
+            task,
+            checkpoint,
+            execution_id=execution_id,
+            lease_owner_id=lease_owner_id,
+        )
+
     def cancel_task(
         self,
         task_id: str,

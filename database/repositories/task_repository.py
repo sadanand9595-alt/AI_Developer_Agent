@@ -823,6 +823,67 @@ class TaskRepository:
         self._session.refresh(task)
 
         return task
+    # ============================================================
+    # SAVE ORCHESTRATION CHECKPOINT
+    # ============================================================
+
+    def save_orchestration_checkpoint(
+        self,
+        task: Task,
+        checkpoint: dict,
+        *,
+        execution_id: str,
+        lease_owner_id: str,
+    ) -> Task:
+        """Persist a checkpoint only for the owning execution."""
+
+        if not isinstance(checkpoint, dict):
+            raise ValueError("Checkpoint must be a dictionary.")
+
+        normalized_execution_id = (
+            self._normalize_execution_id(execution_id)
+        )
+        normalized_lease_owner_id = (
+            self._normalize_lease_owner_id(lease_owner_id)
+        )
+
+        if normalized_execution_id is None:
+            raise ValueError("execution_id cannot be empty.")
+
+        if normalized_lease_owner_id is None:
+            raise ValueError("lease_owner_id cannot be empty.")
+
+        if normalized_lease_owner_id != normalized_execution_id:
+            raise ValueError(
+                "lease_owner_id must match execution_id."
+            )
+
+        now = datetime.now(timezone.utc)
+
+        statement = (
+            update(Task)
+            .where(Task.id == task.id)
+            .where(Task.status == TaskStatus.RUNNING.value)
+            .where(Task.execution_id == normalized_execution_id)
+            .where(Task.lease_owner_id == normalized_lease_owner_id)
+            .values(
+                plan_json=checkpoint,
+                updated_at=now,
+            )
+            .execution_options(synchronize_session=False)
+        )
+
+        result = self._session.execute(statement)
+
+        if result.rowcount != 1:
+            raise ValueError(
+                "Checkpoint rejected: task is not running "
+                "under the specified execution ownership: "
+                f"{task.id}"
+            )
+
+        self._session.refresh(task)
+        return task
 
     # ============================================================
     # COMPLETE TASK
