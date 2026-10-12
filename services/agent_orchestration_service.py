@@ -300,6 +300,34 @@ class AgentOrchestrationService:
         )
 
         checkpoint["partial_result"] = partial_result
+        if successful_count == 0:
+            checkpoint["error"] = {
+                "code": "ALL_SPECIALISTS_FAILED",
+                "message": "All specialist executions failed.",
+                "specialist_errors": [
+                    specialist.get("error", {})
+                    for specialist in checkpoint["specialists"]
+                    if specialist.get("status") == "failed"
+                ],
+            }
+
+        try:
+            self._task_service.save_orchestration_checkpoint(
+                parent_task.id,
+                checkpoint,
+                execution_id=parent_execution_id,
+                lease_owner_id=parent_execution_id,
+            )
+        except Exception as exc:
+            return Result.fail(
+                "ORCHESTRATION_CHECKPOINT_FAILED",
+                str(exc),
+                details={
+                    "task_id": parent_task.id,
+                    "execution_id": parent_execution_id,
+                    "phase": "final_checkpoint",
+                },
+            )
 
         final_result: dict[str, Any] = {
             "type": "sequential_agent_orchestration",
