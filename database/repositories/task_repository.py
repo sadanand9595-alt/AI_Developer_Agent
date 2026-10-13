@@ -428,6 +428,8 @@ class TaskRepository:
                 Task.lease_owner_id
                 == normalized_lease_owner_id
             )
+            .where(Task.lease_expires_at.is_not(None))
+            .where(Task.lease_expires_at > now)
             .values(
                 last_heartbeat_at=now,
                 lease_expires_at=lease_expires_at,
@@ -866,6 +868,8 @@ class TaskRepository:
             .where(Task.status == TaskStatus.RUNNING.value)
             .where(Task.execution_id == normalized_execution_id)
             .where(Task.lease_owner_id == normalized_lease_owner_id)
+            .where(Task.lease_expires_at.is_not(None))
+            .where(Task.lease_expires_at > now)
             .values(
                 plan_json=checkpoint,
                 updated_at=now,
@@ -955,6 +959,8 @@ class TaskRepository:
                 Task.lease_owner_id
                 == normalized_lease_owner_id
             )
+            .where(Task.lease_expires_at.is_not(None))
+            .where(Task.lease_expires_at > now)
             .values(
                 status=TaskStatus.COMPLETED.value,
                 result_json=result,
@@ -1054,6 +1060,8 @@ class TaskRepository:
                 Task.lease_owner_id
                 == normalized_lease_owner_id
             )
+            .where(Task.lease_expires_at.is_not(None))
+            .where(Task.lease_expires_at > now)
             .values(
                 status=TaskStatus.FAILED.value,
                 result_json=None,
