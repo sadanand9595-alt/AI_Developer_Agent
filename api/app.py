@@ -22,18 +22,13 @@ from ai.planner import AIPlanner
 from api.errors import register_exception_handlers
 
 from api.routers import (
-
     agents,
-
     approvals,
-
     auth,
-
     conversations,
-
     executions,
+    orchestrations,
     tasks,
-
 )
 
 from config.environment import bootstrap_environment
@@ -154,6 +149,7 @@ def create_app() -> FastAPI:
 
     app.include_router(agents.router)
     app.include_router(executions.router)
+    app.include_router(orchestrations.router)
 
     @app.get("/health", tags=["health"])
 

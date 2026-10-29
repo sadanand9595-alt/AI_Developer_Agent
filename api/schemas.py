@@ -298,3 +298,40 @@ class ExecutionStatusResponse(BaseModel):
     started_at: datetime | None
     completed_at: datetime | None
     updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Sequential Orchestration
+# ---------------------------------------------------------------------------
+
+class OrchestrationSpecialistRequest(BaseModel):
+    """One specialist in a sequential orchestration request."""
+
+    agent_id: str = Field(min_length=1, max_length=200)
+    name: str | None = Field(default=None, max_length=200)
+
+
+class SequentialOrchestrationRequest(BaseModel):
+    """Request to execute specialists sequentially."""
+
+    request: str = Field(min_length=1)
+    specialists: list[OrchestrationSpecialistRequest] = Field(min_length=1)
+    title: str = Field(
+        default="Sequential Agent Orchestration",
+        min_length=1,
+        max_length=500,
+    )
+
+
+class SequentialOrchestrationResponse(BaseModel):
+    """Result of a sequential specialist orchestration."""
+
+    task_id: str
+    execution_id: str
+    status: str
+    partial_result: bool
+    successful_count: int
+    failed_count: int
+    specialists: list[dict[str, Any]]
+    final_output: Any | None = None
+    error: dict[str, Any] | None = None
